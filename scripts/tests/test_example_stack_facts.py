@@ -213,8 +213,8 @@ class ExampleStackFactsTests(unittest.TestCase):
             Counter(
                 {
                     # Includes the Kubernetes Deployer, SRE Assistant, the
-                    # Workday HR assistant, and the NeMo Platform Harness
-                    # Optimization example.
+                    # Workday HR assistant, and the Helix CAD example
+                    # with its source-lock-verified Deep Agents version.
                     "unconfirmed": 13,
                     "unpinned": 11,
                     "unknown": 1,
