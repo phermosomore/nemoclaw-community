@@ -67,7 +67,7 @@ Where things run:
   `/agent/skills/`, and the task's files under `/app`. Paths in the task are real
   paths in that container. Nothing carries over between runs.
 - Trials run in parallel, one container each, with 3 GiB of memory. Each run is
-  stopped after 15 minutes.
+  stopped after 5 minutes (15 for the vision agent, which reviews every save).
 - The container's network reaches only NeMo Helix (model and traces).
 
 ## Behavior
@@ -155,7 +155,7 @@ Where things run:
 
 - FreeCAD runs headless; rendering needs the virtual display (`xvfb-run`). A heavy
   FreeCAD call can exhaust the container's memory and end the run.
-- A run must finish within 15 minutes.
+- A run must finish within 5 minutes (15 for the vision agent).
 - Only the two models above, through the harness: never call a model endpoint directly.
 - The agent directory is uploaded with every run and readable by the agent. This
   ethos and the evals stay outside it.

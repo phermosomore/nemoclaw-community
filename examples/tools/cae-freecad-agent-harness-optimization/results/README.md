@@ -1,25 +1,25 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Results: Nemotron 3 Ultra, then Ultra with Nemotron 3.5 Super VL, round by round
+# Results: Nemotron 3 Ultra, round by round
 
-In chapters 1-3 the agent under test runs on **Nemotron 3 Ultra**, one container per run
-with headless FreeCAD 1.1.3 and a shell, 5 minutes and 3 GiB per run. Every round ran both eval tasks
+The agent under test runs on **Nemotron 3 Ultra**, one container per run with headless
+FreeCAD 1.1.3 and a shell, 5 minutes and 3 GiB per run. Every round ran both eval tasks
 twice, all trials in parallel, then NeMo Compass on the round's traces, a NeMo Eval
 Author review of the new Insights, and a fresh experimenter
 ([cad-experimenter](../skills/cad-experimenter/SKILL.md)) that built up to two
 candidates. A candidate was kept only if it passed more runs than the agent under study
 (or as many runs and more checks), with no part and no check worse.
 
-The story has four chapters. In the first, the loop met everything the Ethos asked for,
+The story has three chapters. In the first, the loop met everything the Ethos asked for,
 with an agent that ran one reconstruction script. Looking at the result, the owner saw
 that the Ethos had missed part of the intent, revised it, and let the loop run again. In
 the third, renders from several directions showed artefacts that no check measured, and
-removing them exposed one more gap in the eval. In the fourth, a vision model, Nemotron
-3.5 Super VL, joined the agent to look for those artefacts itself.
+removing them exposed one more gap in the eval. Then a vision model, Nemotron 3.5 Super
+VL, was added to look for those artefacts itself.
 
-The chapter-3 final agent is in [final-agent/](final-agent/); chapter 4's, with the
-vision review, is in [final-agent-vision/](final-agent-vision/).
+The final agent is in [final-agent/](final-agent/); with the vision review, in
+[final-agent-vision/](final-agent-vision/).
 
 ## Chapter 1: the original Ethos
 
@@ -121,47 +121,24 @@ cleaner and its mean IoU is no lower (the keep rule's tie-break).
 - **More time is not more skill.** Doubling the run to 10 minutes bought more failed
   rewrites, not convergence.
 
-## Chapter 4: two models
+## Adding vision
 
-Chapter 4 reran the loop with two models on the Helix gateway, Nemotron 3 Ultra and
-Nemotron 3.5 Super VL, a virtual display in the task container, and the Ethos revised for
-vision (look as well as measure; no visible artefact a designer would object to). Each
-round measured candidates on both parts; checks are out of 36 (two runs per part) or 72
-(four runs per part). Runs were 5 minutes until round 9, 10 minutes in round 10 and 15
-minutes from round 11.
+The final agent was then given a second model, **Nemotron 3.5 Super VL**, which sees
+images. A middleware hook renders every saved model beside the mesh (and as flat
+cross-sections) and asks it what a designer would object to; Ultra acts on the answer. In a
+10-run confirmation (15-minute runs, [final-agent-vision/](final-agent-vision/)) it passed
+**9 of 10**, 89 of 90 checks (part 1 IoU 0.950-0.952, part 2 0.913-0.934): about the same
+as without vision. What vision adds is sight: on models that pass every check it names
+artefacts IoU misses (a notch, a crease, a section built closed), though the agent mostly
+fixes only the measurable ones.
 
-| Round | What the traces, Insights and Eval Author showed | Change | Runs | Checks |
-| --- | --- | --- | --- | --- |
-| 0. Two base agents | Ultra with a `vision` subagent never called it; Super VL alone looked at its own plots but stalled. No model saved. | Base prompt plus "render with `xvfb-run`; `read_file` shows a PNG". | 0/4, 0/4 | 0, 0 |
-| 1. Short skills (kept: Ultra + vision) | | Measure, FreeCAD knowledge, check-and-look (renderer, independent IoU estimate), a clock. | 0/4 | 13 |
-| 2. Sketch helpers (rejected) | Solver-rejected sketches; 3 of 5 models misplaced; the side-by-side render cannot show position. | Sketch helpers, sections on any plane, an in-place overlay. | 0/4 | 14-16 |
-| 3. Valid solids (kept) | Branch paths bent tighter than the section is wide. | `save_valid`, arc paths, "bend radius >= 1.5 x section". One valid solid in every run. | 0/4 | 27 |
-| 4. See the difference (kept) | Leading questions got agreeing answers; naming the object steered the build; an oval form built round. | Section labels, open questions only, a pixel-difference image for vision. | 0/4 | 30 |
-| 5-6 (rejected) | Thin walls: small errors cost much IoU. | Sections drawn from the mesh; a FEATURES summary. | 0/4 | 22-29 |
-| 7. Blocks that decide (rejected by the owner) | First passes (part 1 at 0.91), but the skills printed the code: 0-5 lines the agent wrote itself. | | 3-4/8 | 57-63/72 |
-| 8-9. The agent models again (kept) | Provenance: 23-80 own lines per build. Super VL alone hit the rate limit. | Measuring blocks that print numbers only; never lose a saved model. | 1-2/8 | 49-54/72 |
-| 10-12. Part 2 (strict) | Cross-sections let vision see part 2's open-sided branch; the join stayed below 0.9. | Section images for vision, join knowledge, a review middleware. | 0-1/8 | 52-56/72 |
-| 12. Eyes on chapter 3's agent | Vision names artefacts on passing models; Ultra acts on sizes. | Chapter 3's final agent plus the review middleware. | 9/10 (five runs per part) | 89/90 |
-
-Eval Author found four verifier holes during these rounds, each from a real run and each
-re-proved: `no-missing-feature` sized its voxels by the bounding diagonal only, so it could
-not fail on part 2's thin walls; the dimension checks could measure a part left shifted by
-an earlier probe; they measured FreeCAD's loose bounding box, which counts spline control
-points; and a model whose rebuild hung got no grade. Chapter 3's final agent still passes
-10 of 10 under all four.
-
-What chapter 4 taught:
-
-- **Ultra builds, Super VL looks.** Super VL driving alone was slower, saved nothing more
-  often and hit the provider's token rate limit.
-- **How to ask a vision model.** Open questions, no object names; flat cross-sections of
-  mesh and model rather than 3D renders for sub-millimetre errors.
-- **Hooks make it happen every time.** Ultra called vision late, rarely, or overrode it;
-  a middleware review after every save does not depend on the agent remembering.
-- **Seeing is not fixing.** Super VL names artefacts reliably; Ultra acts on the measurable
-  ones and rarely changes a construction to remove an artefact within one run.
-- **The Ethos line decides how far skills may go.** Blocks that print feature code passed
-  sooner; the owner kept the line chapter 3 drew.
+Before that, the loop was rerun from the base prompt with both models for twelve rounds.
+It did not converge to a passing agent: part 1 passed in some runs, part 2 never reliably.
+It did teach which model does what (Ultra builds, Super VL looks; Super VL alone was slower
+and hit its rate limit), how to ask a vision model (open questions, no object names, flat
+cross-sections for small errors), and why the review must be a hook rather than a choice
+the agent makes. Eval Author also found four verifier holes along the way, all fixed and
+re-proved; chapter 3's agent still passes 10 of 10 under them.
 
 ## Open points
 

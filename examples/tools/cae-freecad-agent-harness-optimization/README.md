@@ -9,7 +9,7 @@
 | --- | --- |
 | Description | Runs a CAD agent next to headless FreeCAD in one container per run, traces every run to NeMo Helix, finds what it gets wrong with NeMo Compass, turns that into a proven Harbor eval with NeMo Eval Author, and improves the agent against the eval. |
 | Industry | 🏭 Manufacturing |
-| Requirements | Python 3.12+ · NeMo Helix 0.7.3 · Docker (Colima on macOS) · Harbor 0.24.0 · a coding agent · inference credentials (a tool-calling model; a vision model for chapter 4) |
+| Requirements | Python 3.12+ · NeMo Helix 0.7.3 · Docker (Colima on macOS) · Harbor 0.24.0 · a coding agent · inference credentials (a tool-calling model, and a vision model for the vision review) |
 | NemoClaw | N/A |
 | Harness | LangChain Deep Agents 0.7.28 |
 | OpenShell | N/A |
@@ -27,9 +27,8 @@ loop reads it, and the loop optimizes exactly what it says. Here the agent first
 perfect score while missing what the owner actually wanted; one revision of the Ethos,
 and the checks that came from it, steered the next rounds to an agent that models the part
 the way an engineer would. The final agent, on **Nemotron 3 Ultra**, passes all nine checks
-on 10 of 10 runs ([Results](#results)). A fourth chapter gives it eyes: a vision model,
-**Nemotron 3.5 Super VL**, reviews every model the agent saves and names the artefacts that
-no check measures ([Chapter 4](#chapter-4-giving-the-agent-eyes)).
+on 10 of 10 runs ([Results](#results)); with a vision model, **Nemotron 3.5 Super VL**,
+reviewing every save, it also names the artefacts no check measures.
 
 ## Screenshot
 
@@ -54,7 +53,7 @@ also uses from four directions to look for artefacts:
 | Category | Developer Tool |
 | Contributor or provenance | NVIDIA |
 | Use this when | You have a specialised agent that drives an engineering tool, and you want to find its failures in traces, turn them into a regression eval, and improve the agent against measurement. |
-| You will get | A containerized Deep Agents CAD agent with every run traced to Helix; Compass Insights in Studio; a proven Harbor eval of two parts with nine checks each; a measured, round-by-round journey, including an Ethos revision, with its final agent; and that agent with a vision model reviewing every save (chapter 4). |
+| You will get | A containerized Deep Agents CAD agent with every run traced to Helix; Compass Insights in Studio; a proven Harbor eval of two parts with nine checks each; a measured, round-by-round journey, including an Ethos revision, with its final agent; and that agent with a vision model reviewing every save. |
 | Runs on | Any host with Docker and NeMo Helix; verified on macOS with Colima. |
 | Requires | See [Prerequisites](#prerequisites). |
 | Verified on | macOS, Colima (4 CPU, 16 GiB), FreeCAD 1.1.3 (conda-forge, in the images), NeMo Helix 0.7.3, Deep Agents 0.7.28, NeMo Relay 0.10.2, NeMo Compass `0952ad8`, NeMo Eval Author `48c2b3b`, Harbor 0.24.0. |
@@ -133,7 +132,7 @@ flowchart LR
     P["publish.py scores"]
   end
   subgraph trial["One trial · many in parallel"]
-    C["Task container · 15 min · 3 GiB<br/>headless FreeCAD + a virtual display + Deep Agents<br/>/agent: prompt, skills, middleware<br/>/app: reference.obj → model.FCStd"]
+    C["Task container · 5 min · 3 GiB<br/>headless FreeCAD + a virtual display + Deep Agents<br/>/agent: prompt, skills, middleware<br/>/app: reference.obj → model.FCStd"]
     V["Verifier container · no network<br/>9 checks → reward"]
   end
   subgraph helix["NeMo Helix"]
@@ -192,7 +191,7 @@ A run passes only when all nine checks pass:
 | `single-visible-object` | Only the finished model is visible when the file is opened. |
 | `compact-model` | At most 10× the faces of the reference solution: a designer's model, not a stack of slices. |
 
-### How it got there: three chapters, then a vision model
+### How it got there: three chapters
 
 **Chapter 1, the first Ethos.** It asked for a valid, editable, native feature tree that
 matches the mesh. Starting from a two-sentence prompt, the loop reached 10 of 10 in four
@@ -245,85 +244,20 @@ the checks the eval had at the time (28 with seven, 32 with eight, 36 with nine)
 | 9 (4/4, then 3/4 under the new check) | skill `build-features` (`cadkit.py`: `branch_loft`, `SKILL.md`) | The arm's underside and the bowl's end wall met at a grazing angle that cannot be fused cleanly. | **The arm starts on the rim's flat face** and ends in a smooth tip measured from the mesh: *meet in one shared plane.* | 4/4 | 32/32 | 0.95, 0.92 · 0.92, 0.93 | 0.16 M |
 | | | Two runs saved part 1 without its branch and passed every check. | Eval Author added `no-missing-feature`; round 9 re-graded to 3/4. | | | | |
 | 10 (kept) | skills `measure-mesh` (`branch.py` PATH), `build-features` (`cadkit.py`: `tube`, `save`), `verify-model` (`where.py`); system prompt (done = COMPLETE) | The agent hand-edited the branch's path ends and got one wrong, so the sweep failed and was dropped; nothing told it the model was incomplete. | **The measured path with its ends in the wall, a tube that repairs or falls back to it, and a save that reports COMPLETE or INCOMPLETE**: *never finish without a planned feature.* | **4/4** | **36/36** | **0.95, 0.95 · 0.92, 0.93** | **0.13 M** |
+| **Vision** | | | | | | | |
+| 11 (final, with vision) | new middleware (review of every save); skill `build-features` (`SKILL.md`: what causes each artefact); system prompt (+1 paragraph) | Renders showed artefacts that no check measures. | **Nemotron 3.5 Super VL reviews every save** and Ultra acts on its findings: *let the agent see its own model.* Confirmation, 10 runs of 15 minutes. | **9/10** | **89/90** | 0.950-0.952 · 0.913-0.934 | 0.34 M |
 
 Then the 10-run confirmation above. What each round taught is in
 [results/](results/README.md#what-the-rounds-taught).
 
-### Chapter 4: giving the agent eyes
-
-A model whose IoU looks great can still carry small artefacts: a bulge, a notch, a crease
-where a branch meets the body. Chapter 3 found them by rendering the models by hand. Chapter
-4 asks whether a vision model can find them inside the loop. Two models now share the Helix
-gateway: **Nemotron 3 Ultra** (text, the stronger coder) and **Nemotron 3.5 Super VL** (it
-sees images). The task container gained a virtual display, so a script can render the
-model and the mesh, and `read_file` shows a PNG to a vision model. The owner revised the
-Ethos: look as well as measure, and a new success criterion, *no visible artefact a
-designer would object to*.
-
-**The final agent** ([results/final-agent-vision](results/final-agent-vision/agent.yaml))
-is chapter 3's agent with one addition, a middleware review. After every save, the
-middleware renders the model beside the mesh from four directions and cuts both on flat
-sections, asks Super VL an open, feature-by-feature question about what a designer would
-object to, and appends its findings (plus the check numbers) to what Ultra sees. A
-build-skill section maps each kind of finding to its usual construction cause. Ultra still
-writes every feature; Super VL only looks. A shell command that would copy a file over the
-saved model is refused, so only the build's save, which keeps the better model, writes it.
-
-In a 10-run confirmation (15-minute runs) it passed **9 of 10** runs and 89 of 90 checks:
-part 1 five of five (IoU 0.950-0.952, 18 faces), part 2 four of five (IoU 0.913-0.934; the
-fifth run had the highest overlap, 0.942, but failed `independent-dimensions`). Chapter 3's
-agent, re-graded under the same, stricter verifier, still passes 10 of 10.
-
-![The final vision agent's models (orange) beside each mesh (blue), from four directions](assets/vision-results.png)
-
-What the reviewer sees after each save: the mesh, the model and their outline difference
-from four directions (grey both, blue mesh only, red model only), and flat cross-sections
-of both. In this part-2 model, which passes every check at IoU 0.934, the cross-section at
-`x=194.22` shows a notch on each side of the branch that the mesh does not have:
-
-![Review render: mesh, model and their difference from four directions](assets/vision-review-render.png)
-
-![Review cross-sections: mesh, model and their difference on five planes](assets/vision-review-sections.png)
-
-**What vision caught.** On models that pass every check, Super VL named a crease along a
-branch, a recessed wall, a kinked junction, a notch at the top of a boss, steps at a rim
-near a join, a faceted wall, and a branch section open on one side where the model's was
-closed. Ultra acts on the findings it can measure (lengths, section sizes), which moves IoU
-by up to 0.016; it rarely changes a construction to remove an artefact within one run, so
-the renders look like chapter 3's. Seeing the artefact is solved; removing it is the next
-step.
-
-**What the loop learned about two models** (twelve rounds, the first ten from the base
-prompt; [results/](results/README.md#chapter-4-two-models)):
-
-- **Ultra builds, Super VL looks.** Super VL driving alone was slower (40-100 s a turn),
-  saved nothing more often, and hit the provider's rate limit.
-- **Ask open questions, never name the part.** Asked "is the body too small?", Super VL
-  agreed while the model had 25% too much volume; open questions it answered correctly.
-  Once it called the part by what it resembles, Ultra built that object's usual shape
-  instead of what the sections measured.
-- **Flat sections beat 3D renders.** Errors of a fraction of a millimetre on a thin wall
-  are invisible in a render; a cross-section of mesh and model side by side shows an open
-  section, a missing arm or a filled join at once.
-- **Make the review happen every time.** Asked to call vision itself, Ultra did so late,
-  rarely, or overrode it. A middleware hook makes the review part of every save.
-- **The Ethos line held.** Rounds 7-12 tried to reach the same scores with the agent
-  writing every feature from measurements alone, under a stricter reading of the Ethos's
-  "no reconstruction routine". Part 1 passed in some runs; part 2 stayed below a robust
-  0.9. One round-7 agent passed by running code its skills printed (0-5 lines of its own);
-  the owner rejected it, as in chapter 1.
-
-**What the run fixed along the way.** Four verifier holes, each found by Eval Author from a
-real run and each re-proved: `no-missing-feature` could not fail on part 2's thin walls;
-the dimension checks could measure a part left shifted by an earlier probe, and measured a
-loose bounding box that counts spline control points; a model whose rebuild hung got no
-grade. Chapter 3's agent still passes 10 of 10 under all four fixes. And three platform
-issues: NeMo Relay 0.7.3 dropped images before they reached the model (fixed upstream in
-0.10.2), Harbor 0.24's egress proxy cut long answers (the runner streams), and subagents
-had no retry.
-
-Chapter 4 ran with 15-minute runs (chapters 1-3: 5 minutes), NeMo Helix 0.7.3, NeMo Relay
-0.10.2, Deep Agents 0.7.28 and Harbor 0.24.0.
+**Adding vision.** The final agent was then given eyes: **Nemotron 3.5 Super VL**, a
+vision model on the same gateway, reviews every model the agent saves (a middleware hook
+renders the model beside the mesh and asks what a designer would object to) and Ultra acts
+on its findings. It passed 9 of 10 confirmation runs, about the same as without it: what it
+adds is not score but sight. On models that pass every check it names artefacts IoU misses,
+such as a notch, a crease or a section built closed, though the agent mostly fixes only the
+measurable ones. A rerun from the base prompt with both models did not converge to a passing
+agent in twelve rounds ([results/](results/README.md#adding-vision)).
 
 ## Taking this further
 
@@ -345,7 +279,7 @@ take an agent like this to production:
   previous designs as examples it can study for how a feature tree is structured. The
   same material belongs in the Ethos where it states intent, so Compass and Eval Author
   hold the agent to it.
-- **From seeing artefacts to removing them.** Chapter 4's reviewer names the artefacts;
+- **From seeing artefacts to removing them.** The vision reviewer names the artefacts;
   the agent mostly acts on the measurable ones. Worked examples of how a modelling choice
   causes each kind of artefact, and a held-out part to show the method generalizes, are
   the next steps.
@@ -359,7 +293,7 @@ take an agent like this to production:
 - **A coding agent** for Eval Author's skills and the experiment step. Eval Author
   supports [Claude Code, Codex, Cursor and others](https://github.com/NVIDIA-NeMo/eval-author/blob/main/docs/getting-started.md#install-eval-author-with-npx).
 - **An inference provider** with a tool-calling model for the agent (this example uses
-  Nemotron 3 Ultra), a vision model for chapter 4 (Nemotron 3.5 Super VL), and one with
+  Nemotron 3 Ultra), a vision model for the review (Nemotron 3.5 Super VL), and one with
   structured output for Compass.
 
 Install NeMo Helix, Harbor and Compass, then start Helix and Colima:
@@ -494,12 +428,14 @@ runs and more checks) and the agent still does the modelling (chapters 1-3 also 
 no part and no check worse). Copy the winner over `agent/`, mark the Insights it fixed as
 resolved in Studio, and start the next round at Step 1.
 
-To run chapter 4's agent, which reviews every save with a vision model, point Harbor at
-its folder; its model and the reviewer's are named in its files:
+To run the vision agent, which reviews every save with a vision model, point Harbor at
+its folder and give it 15 minutes (its model and the reviewer's are named in
+its files):
 
 ```bash
-PYTHONPATH=harness harbor run -y -p evals -a cad_agent:CadAgent \
-  --ak agent_dir=$PWD/results/final-agent-vision --n-attempts 2 -n 2 --jobs-dir runs --job-name vision
+CAD_AGENT_TIMEOUT=900 PYTHONPATH=harness harbor run -y -p evals -a cad_agent:CadAgent \
+  --ak agent_dir=$PWD/results/final-agent-vision --agent-timeout-multiplier 2.67 \
+  --n-attempts 2 -n 2 --jobs-dir runs --job-name vision
 ```
 
 ## Environment variables
@@ -512,10 +448,11 @@ read from your shell:
 | `NHX_BASE_URL` | `http://localhost:8080` | Helix as this host reaches it, for `publish.py`. |
 | `CAD_HELIX_URL` | `http://host.docker.internal:8080` | Helix as the containers reach it: the model gateway and Intake. |
 | `NHX_WORKSPACE` | `default` | The Helix workspace, for both. |
+| `CAD_AGENT_TIMEOUT` | `300` | The run limit in seconds (the vision agent: 900, with `--agent-timeout-multiplier 2.67`). |
 | `DOCKER_HOST` | Docker's default | The Colima socket on macOS. |
 
-The run limit (15 minutes; chapters 1-3 were measured at 5, with `CAD_AGENT_TIMEOUT = "300"`)
-and the 3 GiB memory cap live in each task's
+The 5-minute run limit (`CAD_AGENT_TIMEOUT`, overridable from your shell; the vision agent
+used 15) and the 3 GiB memory cap live in each task's
 [task.toml](evals/part-1-reconstruction/task.toml). Keep credentials in Helix
 (`nemo setup`) or `.env`, never in `agent.yaml`.
 
@@ -533,11 +470,9 @@ and the 3 GiB memory cap live in each task's
 
 ## Known limitations
 
-- **Vision finds more than the agent fixes.** Chapter 4's reviewer names artefacts on
-  passing models; the agent rarely changes a construction to remove one in a run. The
-  reviewer sometimes still names the object in parentheses despite its instructions.
-- **Two models cost time and quota.** A review takes 20-40 s, and the vision provider
-  rate-limits tokens (HTTP 429, about 60 s each): run at most two trials at once.
+- **Vision finds more than the agent fixes.** The reviewer names artefacts on passing
+  models; the agent rarely changes a construction to remove one, and a review costs 20-40 s
+  (run at most two trials at once: the vision provider rate-limits tokens).
 - **Two parts, few runs.** Two runs per part per round, ten for the final agent; the eval
   shows the method works for two different parts, not for every part, and no rotated or
   held-out part was tested. An agent you mean to ship needs tasks covering the work it
