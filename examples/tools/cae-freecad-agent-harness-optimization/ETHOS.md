@@ -2,7 +2,7 @@
 schema_version: 1
 name: cad-agent
 created_timestamp: 2026-09-10T13:45:00+02:00
-updated_timestamp: 2026-10-15T21:00:00+02:00
+updated_timestamp: 2026-10-16T23:30:00+02:00
 author: NVIDIA
 owner: NVIDIA
 ---
@@ -28,7 +28,7 @@ reference mesh, and it is never sufficient on its own.
 
 - Audience: CAD designers and mechanical engineers
 - Categories: mesh-to-parametric reconstruction; numeric verification of the result
-- In scope: any single part given as a triangle mesh (OBJ or STL), whatever its shape, size or orientation: revolved parts, prismatic parts, thin shells and free-form surfaces; measuring the mesh; authoring sketches and PartDesign features in a new document; verifying the result numerically
+- In scope: any single part given as a triangle mesh (OBJ or STL), whatever its shape, size or orientation: revolved parts, prismatic parts, thin shells and free-form surfaces; measuring the mesh; authoring sketches and PartDesign features in a new document; verifying the result numerically and visually
 - Out of scope: assemblies; drawings; FEM/CFD; materials; tolerancing and GD&T; multi-body designs; editing documents the agent did not create
 
 ## Tools
@@ -41,12 +41,24 @@ only in files. `read_file`, `write_file`, `ls` and the other file tools take rea
 paths; `read_file` returns 100 lines unless given a larger `limit`, and its header
 shows `next offset`.
 
+The container also has a virtual display: `xvfb-run -a freecadcmd script.py` runs
+FreeCAD with its GUI, so a script can render the model, the mesh or both to a PNG.
+`read_file` on a PNG shows the image to a vision model; a text-only model gets
+"Unsupported content".
+
 ## Harness
 
-LangChain Deep Agents on Nemotron 3 Ultra (text only), built from `agent/agent.yaml`
-by `harness/run_agent.py` inside each Harbor trial's task container. The model is
-reached through the NeMo Helix inference gateway, and NeMo Relay records each run as
-an ATIF trace in Intake, with the agent's tool schemas. The agent stops when it
+LangChain Deep Agents, built from `agent/agent.yaml` by `harness/run_agent.py` inside
+each Harbor trial's task container, with two models on the NeMo Helix inference
+gateway:
+
+- Nemotron 3 Ultra (`nvidia-nvidia-nemotron-3-ultra`): text only, the stronger at
+  reasoning and code.
+- Nemotron 3.5 Super VL (`nvidia-nvidia-nemotron-3-5-super-vl`): vision and text; it
+  can see images.
+
+`agent.yaml` names the main agent's model, and any subagent may name the other. NeMo
+Relay records each run as an ATIF trace in Intake, with the agent's tool schemas. The agent stops when it
 reports the finished model.
 
 Where things run:
@@ -55,7 +67,7 @@ Where things run:
   `/agent/skills/`, and the task's files under `/app`. Paths in the task are real
   paths in that container. Nothing carries over between runs.
 - Trials run in parallel, one container each, with 3 GiB of memory. Each run is
-  stopped after 5 minutes.
+  stopped after 15 minutes.
 - The container's network reaches only NeMo Helix (model and traces).
 
 ## Behavior
@@ -70,6 +82,8 @@ Where things run:
   and holes from their own measured cross-sections.
 - Build in a new document with the requested name. Never open, change or close a
   document the agent did not create.
+- Look at the model as well as measuring it: compare renders of the model and the mesh
+  from several directions. Numbers show how much is wrong; images show what and where.
 - Verify numerically and report the numbers. Never claim success because no exception
   was raised. One run reported "valid shape, one solid, all sketches fully constrained"
   while 19% short on volume.
@@ -91,6 +105,10 @@ Where things run:
   purpose even when it passes.
 - Generalize: the method must work for parts, proportions and orientations the eval
   has not shown it. Tuning to the evaluated parts is a failure.
+- Measure and see, and let the models judge. Measurements give the numbers; renders show
+  what the numbers miss. The more of the judgement the models make from what they
+  measure and see, the less part-specific code the skills need, and the better the
+  method generalizes.
 
 ## Success Criteria
 
@@ -112,6 +130,8 @@ Where things run:
 - It reloads and recomputes cleanly after save and reopen.
 - Compact: about one face per surface of the part, not one per slice or polygon
   segment; the eval allows at most 10 times the faces of the task's reference solution.
+- No visible artefact a designer would object to: notches, bulges, creases, seams,
+  steps or pinches the part does not have.
 - Every feature of the part is there: a model that leaves out a branch or a boss is wrong
   even when its overall overlap is high.
 - IoU ≥ 0.9 against the task's reference mesh, measured by the eval's verifier, on every
@@ -121,20 +141,22 @@ Where things run:
 
 - Parametric quality over raw IoU: a sketch-driven tree at 0.88 beats a boolean pile at
   0.95.
-- Extra verification is worth its token cost; re-deriving the whole model to chase the
+- Extra verification is worth its token cost, looking included; re-deriving the whole model to chase the
   last few points of IoU is not.
-- How the agent is changed: a short system prompt, with knowledge in skills and work
-  split across subagents where that helps; middleware only for what they cannot do.
-  Code in a skill is small, reusable building blocks the agent composes (measuring a
-  section, checking a solid), never a complete reconstruction routine. The smallest
-  change that fixes the root cause.
+- How the agent is changed: through whichever layer fits the problem, with no preference
+  among them: the system prompt, skills (knowledge and small building blocks), subagents,
+  and middleware (hooks before and after each model call and each tool call). Code in a
+  skill is small, reusable building blocks the agent composes (measuring a section,
+  checking a solid), never a complete reconstruction routine, and no layer decides the
+  features or writes the model for the agent. The smallest change that fixes the root
+  cause.
 
 ## Constraints
 
-- FreeCAD runs headless: no GUI, no view objects, and no screenshots. A heavy FreeCAD
-  call can exhaust the container's memory and end the run.
-- A run must finish within 5 minutes.
-- Text only: read geometry back as numbers.
+- FreeCAD runs headless; rendering needs the virtual display (`xvfb-run`). A heavy
+  FreeCAD call can exhaust the container's memory and end the run.
+- A run must finish within 15 minutes.
+- Only the two models above, through the harness: never call a model endpoint directly.
 - The agent directory is uploaded with every run and readable by the agent. This
   ethos and the evals stay outside it.
 
@@ -144,7 +166,8 @@ Where things run:
 - Skills under the agent's skills library: yes
 - Subagents: yes
 - Middleware (`agent/middleware.py`): yes
-- Model selection: with-approval
+- Model selection, for the main agent and each subagent, between the two models above: yes
+- Any other model: no
 - Task instruction, reference mesh and evals: no
 
 ## Evaluation Setup
@@ -162,7 +185,8 @@ IoU measures shape overlap only. It cannot show that the model is editable, that
 dimensions drive the geometry, or that it survives save and reopen; those need
 structural checks of the saved document. Nor can it show that the surface is clean: a
 jagged, self-intersecting model can score as high as a smooth one, so the full shape
-check is part of the bar. IoU is not pose-aligned, so it is specific to
+check is part of the bar. Nor can it show an artefact that costs little volume, such as
+a crease or a notch, which a render shows at a glance. IoU is not pose-aligned, so it is specific to
 each reference mesh.
 
 ## Vision
@@ -173,3 +197,5 @@ _(none)_
 
 - How many and which reference parts are enough to show the agent generalizes, and
   whether thin parts need a resolution-aware IoU target.
+- Whether visible artefacts can become a proven check, given that the verifier has no
+  network and no model.

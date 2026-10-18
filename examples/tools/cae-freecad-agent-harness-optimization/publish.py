@@ -92,7 +92,7 @@ def main():
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('scores').add_argument('job', type=Path, help='a Harbor job folder')
     found = commands.add_parser('insights')
-    found.add_argument('insights', type=Path, help='insights.yml written by insight-agent')
+    found.add_argument('insights', type=Path, help='insights.yml written by compass')
     found.add_argument('--agent', default='cad-agent')
     args = parser.parse_args()
     if args.command == 'scores':

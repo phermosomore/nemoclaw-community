@@ -1,6 +1,6 @@
 ---
 name: cad-experimenter
-description: Run one round of the harness optimization loop on the FreeCAD CAD agent. Read the round's eval results, NeMo Compass Insights, Eval Author review and traces, diagnose, and build up to two candidate agents (system prompt, skills, subagents) for the next eval. Use when asked to improve, fix or experiment on the CAD agent.
+description: Run one round of the harness optimization loop on the FreeCAD CAD agent. Read the round's eval results, NeMo Compass Insights, Eval Author review and traces, diagnose, and build up to two candidate agents (system prompt, skills, subagents, models) for the next eval. Use when asked to improve, fix or experiment on the CAD agent.
 ---
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
@@ -28,7 +28,7 @@ This skill was written for this example only. It is a worked pattern for the
 - `ETHOS.md` (example root): read it first. It holds the requirements, how and where
   the agent runs, what you may change (**Change Scope**) and how changes should be made
   (**Trade-offs**).
-- `agent/`: the agent under study (prompt, model, skills).
+- `agent/`: the agent under study (prompt, models, skills).
 - `runs/eval/`: its eval job, both tasks, two attempts per part. Per trial:
   `verifier/results` lists the checks, `verifier/check.log` the IoU and details,
   `verifier/reward.txt` the reward, and the first line of `agent/run.log` the trace ID
@@ -51,8 +51,8 @@ This skill was written for this example only. It is a worked pattern for the
 | System prompt | `system_prompt` in `agent.yaml` |
 | Skills | `skills/<name>/SKILL.md` in the agent folder, with any files beside it. Deep Agents lists each skill's description in the prompt and the agent reads it when it applies. Skills carry knowledge and small building blocks the agent composes in its own scripts, not a complete reconstruction routine (ETHOS). |
 | Subagents | `subagents` in `agent.yaml`: a list of `{name, description, system_prompt, tools?}`. The agent delegates with its `task` tool. |
-| Middleware | `agent/middleware.py` exporting `MIDDLEWARE`, a list of Deep Agents middleware (e.g. trimming tool output, stopping loops). Use it only for what a prompt or skill cannot do. |
-| Model | `model` in `agent.yaml`. `with-approval`: propose only. |
+| Middleware | `agent/middleware.py` exporting `MIDDLEWARE`, a list of Deep Agents middleware: hooks before and after each model call and each tool call. An equal lever: use whichever layer fits. |
+| Models | `model` in `agent.yaml` for the main agent, and `model:` on any subagent: Nemotron 3 Ultra (text, the stronger coder) or Nemotron 3.5 Super VL (sees images). Only a vision model sees a PNG it reads with `read_file`; the agent renders with `xvfb-run -a freecadcmd` (ETHOS Tools). |
 
 ## Steps
 
@@ -64,10 +64,12 @@ nemo intake spans list --filter.trace-id=TRACE_ID --all-pages --output-format=js
 ```
 
 Find where the behavior happens: the code the agent ran, what came back, what it
-claimed. Look at the saved models too: [render/](render/) draws each one beside its mesh
-(mesh blue, model orange), headless, from several directions (iso, front, right and top
-by default; `VIEWS=` for others). Read every view, passing runs included, and list the
-artefacts a designer would object to even when every check passes:
+claimed, and, where the agent looked at images, what it saw and what it did about it.
+Look at the saved models too: [render/](render/) draws each one beside its mesh (mesh
+blue, model orange), headless, from several directions (iso, front, right and top by
+default; `VIEWS=` for others; `INPLACE=1` draws the mesh translucent over the model, which
+shows misplacement). Read every view, passing runs included, and list the artefacts a
+designer would object to even when every check passes:
 
 - a missing, misplaced or wrongly shaped feature (a round arm built square, a branch
   that stops short);
@@ -81,10 +83,9 @@ passes with them is not the model a designer would build.
 
 ```bash
 docker build -t cad-env evals/part-1-reconstruction/environment          # once: the agent's image
-docker build -t cad-render skills/cad-experimenter/render                # once: plus a display
 docker run --rm -v "$PWD":/w -w /w -e OUT=render.png \
   -e RENDER="<trial>/artifacts/app/model.FCStd:evals/part-1-reconstruction/environment/reference.obj" \
-  cad-render xvfb-run -a -s "-screen 0 1920x1200x24" freecadcmd skills/cad-experimenter/render/render.py
+  cad-env xvfb-run -a -s "-screen 0 1920x1200x24" freecadcmd skills/cad-experimenter/render/render.py
 ```
 
 Write `DIAGNOSIS.md`: per problem, the root cause in two or three sentences,
@@ -108,9 +109,9 @@ shape check (`shape.check(True)`). Hand over only candidates that do, on both pa
 smoke-test a candidate end to end, run one task once with `--ak agent_dir=<candidate>`
 (README Step 4); the orchestrator does the real measurement.
 
-A step that hangs or takes over about 60 s is itself a finding: the whole run has
-5 minutes. Hand over at least one candidate within about
-45 minutes, even if it is the simpler idea; the eval measures it.
+A step that hangs or takes over about 60 s is itself a finding: the whole run has only
+the task's time limit (`CAD_AGENT_TIMEOUT` in `task.toml`). Hand over at least one
+candidate within about 45 minutes, even if it is the simpler idea; the eval measures it.
 
 **4. Report.** Write `CANDIDATES.md`: per candidate, the diff against `agent/`, what you
 tested and its results, and what you expect on each check. The orchestrator measures
@@ -118,11 +119,13 @@ them.
 
 ## The keep rule
 
-The orchestrator measures each candidate on both tasks, two attempts per part, and keeps
-it only when it passes more runs than the agent under study, or as many runs and more
-checks in total, with no part and no check worse. With equal runs and checks, the
-orchestrator may keep a candidate whose renders show clearly fewer artefacts, if its IoU
-is no lower; that is a judgement, recorded with the renders. Otherwise the agent under study stays, and the next round diagnoses again with
+The orchestrator measures each candidate on both tasks and keeps it only when it passes
+more runs than the agent under study (with equal runs, more checks in total). With equal
+runs and checks, the orchestrator may keep a candidate whose renders show clearly fewer
+artefacts, if its IoU is no lower; that is a judgement, recorded with the renders. A candidate must also keep
+the modelling with the agent (ETHOS Principles): in its runs the agent chooses the
+features and writes its own build script; one whose only modelling step is running a
+fixed routine is not kept, however it scores. Otherwise the agent under study stays, and the next round diagnoses again with
 fresh evidence. A run lost to the infrastructure rather than the agent (the
 model gateway down, a container that would not start) is void: it is re-run, not counted. Two attempts per part is a quick, noisy signal, so the final agent is
 measured again with more attempts before it is reported.
