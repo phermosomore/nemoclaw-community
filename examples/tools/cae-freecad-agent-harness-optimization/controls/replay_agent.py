@@ -3,6 +3,7 @@
 """Negative-control agent: hands over a saved model instead of building one.
 
     docker build -t cad-verifier evals/verifier   # once: every task's verifier starts from it
+    docker build -t cad-env evals/environment     # once: and every task's environment
     PYTHONPATH=controls harbor run -p evals/<split>/<task> -a replay_agent:ReplayModel \\
       --ak model=controls/<task>/<negative>.FCStd -y
 """

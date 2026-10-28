@@ -10,7 +10,8 @@ checks and model complexity (features, sketches, faces, ...) to the run's trace 
 from agent/outcome.json, else the first line of agent/run.log), so NeMo Compass sees how
 each run was graded.
 insights: Compass finding -> Helix Insight (name -> title, evidence -> trace_refs);
-Helix has no CLI command for this yet.
+Helix has no CLI command for this yet. Creates new findings and writes their IDs back to
+the file; updates the ones that have an ID.
 
 Reads NHX_BASE_URL and NHX_WORKSPACE like the Helix CLI. Re-running scores is safe:
 Intake keeps one result per trace and name.
@@ -28,9 +29,9 @@ BASE = os.environ.get('NHX_BASE_URL', 'http://localhost:8080').rstrip('/')
 WORKSPACE = os.environ.get('NHX_WORKSPACE', 'default')
 
 
-def api(service: str, path: str, body: dict | None = None) -> dict:
+def api(service: str, path: str, body: dict | None = None, method: str | None = None) -> dict:
     url = f'{BASE}/apis/{service}/v2/workspaces/{WORKSPACE}/{path}'
-    request = urllib.request.Request(url, data=body and json.dumps(body).encode(),
+    request = urllib.request.Request(url, data=body and json.dumps(body).encode(), method=method,
                                      headers={'Content-Type': 'application/json'})
     with urllib.request.urlopen(request) as response:
         return json.load(response)
@@ -118,10 +119,18 @@ def scores(job: Path) -> None:
 def insights(path: Path, agent: str) -> None:
     import yaml
 
-    for insight in yaml.safe_load(path.read_text()) or []:
-        body = {'title': insight['name'], 'agent': agent, 'description': insight['description'],
-                'trace_refs': [e['trace_id'] for e in insight['evidence']]}
-        print(api('insights', 'insights', body)['id'], insight['name'])
+    found = yaml.safe_load(path.read_text()) or []
+    try:
+        for insight in found:
+            body = {'title': insight['name'], 'agent': agent, 'description': insight['description'],
+                    'trace_refs': [e['trace_id'] for e in insight['evidence']]}
+            if insight.get('id'):
+                api('insights', f"insights/{insight['id']}", body, 'PATCH')
+            else:
+                insight['id'] = api('insights', 'insights', body)['id']
+            print(insight['id'], insight['name'])
+    finally:  # keep the IDs of the ones created, even if a later one fails
+        path.write_text(yaml.safe_dump(found, sort_keys=False, allow_unicode=True))
 
 
 def main():

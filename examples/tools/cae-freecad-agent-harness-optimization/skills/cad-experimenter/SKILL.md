@@ -93,7 +93,7 @@ problems to diagnose like failing checks: they often cost IoU margin, and a mode
 passes with them is not the model a designer would build.
 
 ```bash
-docker build -t cad-env "$(ls -d evals/train/*/environment | head -1)"   # once: the agent's image (every task's is the same)
+docker build -t cad-env evals/environment   # once: the agent's image
 docker run --rm -v "$PWD":/w -w /w -e OUT=render.png \
   -e RENDER="<trial>/artifacts/app/model.FCStd:evals/train/<task>/environment/reference.obj.gz" \
   cad-env xvfb-run -a -s "-screen 0 1920x1200x24" freecadcmd skills/cad-experimenter/render/render.py

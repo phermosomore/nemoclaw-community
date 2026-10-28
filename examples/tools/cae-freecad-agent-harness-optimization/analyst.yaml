@@ -7,6 +7,7 @@
 max_tokens: 16384
 # The agent's own configuration, so findings can be checked against it.
 code_base: agent
+ethos_path: ETHOS.md
 trace:
   max_traces: 100
   intake:
@@ -17,7 +18,6 @@ trace:
       started_at_gte: '2026-09-24T00:00:00Z'
       started_at_lte: '2026-09-25T00:00:00Z'
 compass_signals:
-  ethos_divergence:
-    ethos_path: ETHOS.md
+  ethos_divergence: true
   # Needs an embedding model; this example has no user conversations to analyze.
   user_sentiment: false

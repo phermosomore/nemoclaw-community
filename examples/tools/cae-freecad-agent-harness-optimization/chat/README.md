@@ -9,7 +9,7 @@ and download the model.
 ![The chat: the agent's model in the 3D view, and its steps and report in the chat](../assets/chat.png)
 
 ```bash
-docker build -t cad-env "$(ls -d evals/train/*/environment | head -1)"   # once
+docker build -t cad-env evals/environment   # once
 chat/chat.sh [MESH]     # open the printed http://localhost:8765; Ctrl-C stops it
 ```
 

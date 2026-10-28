@@ -5,7 +5,7 @@
 
 Regression evals for the CAD agent, authored with
 [NeMo Eval Author](https://github.com/NVIDIA-NeMo/eval-author)'s
-trace-to-task workflow and run with [Harbor](https://www.harborframework.com/) 0.24.0.
+trace-to-task workflow and run with [Harbor](https://www.harborframework.com/) 0.25.0.
 
 ## Cases
 
@@ -46,7 +46,7 @@ each change the part in a different way), `mesh-fidelity` (IoU ≥ 0.9),
 harbor run (host) ── per trial, in parallel ──┐
                                               ▼
   task container (evals/<split>/<task>/environment)  verifier container (.../<task>/tests)
-  headless FreeCAD 1.1.3 + Deep Agents + NeMo Relay   FROM cad-verifier: FreeCAD 1.1.3, no network
+  FROM cad-env: FreeCAD 1.1.3, Deep Agents, Relay     FROM cad-verifier: FreeCAD 1.1.3, no network
   /agent  ← agent/ (prompt, skills)                  grades /app/model.FCStd → reward
   /app    reference.obj → model.FCStd ─────────────▶
   network: NeMo Helix only (model gateway, Intake)
@@ -63,7 +63,7 @@ and complexity counts to its trace for NeMo Compass.
 Run every command from the example root
 (`examples/tools/cae-freecad-agent-harness-optimization`). You need:
 
-- Harbor 0.24.0: `uv tool install harbor==0.24.0`.
+- Harbor 0.25.0: `uv tool install harbor==0.25.0`.
 - A Docker engine that can enforce per-container network rules. Docker Desktop on
   macOS cannot; [Colima](https://github.com/abiosoft/colima) can. Give it room for
   parallel trials (each is capped at 3 GiB):
@@ -90,12 +90,12 @@ Controls, which need no agent or Helix:
 
 ```bash
 docker build -t cad-verifier evals/verifier   # every task's verifier starts from it
+docker build -t cad-env evals/environment     # and every task's environment
 for s in train val test; do   # one split per job
   harbor run -y -p evals/$s -a nop    -n 4 --jobs-dir runs --job-name nop-$s
   harbor run -y -p evals/$s -a oracle -n 4 --jobs-dir runs --job-name oracle-$s
 done
 # Negative controls: each hand-made task's solution broken one way, generated in the task image
-docker build -t cad-env evals/test/part-1-reconstruction/environment
 for t in part-1-reconstruction part-2-reconstruction; do mkdir -p controls/$t
   docker run --rm -v "$PWD":/x -w /x -e SOLUTION=evals/test/$t/solution/reference-solution.FCStd \
     -e OUT=controls/$t cad-env freecadcmd controls/make_negatives.py
