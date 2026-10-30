@@ -4,6 +4,7 @@
 # runs to analyze on the command line (README Step 2), for example:
 #   compass --config analyst.yaml --trace.intake.query.started-at-gte <start> \
 #     --trace.intake.query.started-at-lte <end>
+# loop/compass.sh sets code_base, the Intake URL and workspace, agent_name and the window.
 max_tokens: 16384
 # The agent's own configuration, so findings can be checked against it.
 code_base: agent

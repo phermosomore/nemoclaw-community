@@ -2,11 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for how publish.py reads a Harbor trial (its trace ID and the verifier's grade)."""
 
+import io
 import json
 import sys
 import tempfile
 import unittest
+import urllib.error
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
+
+import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import publish  # noqa: E402
@@ -83,6 +89,29 @@ class GradeTest(unittest.TestCase):
         trial = self.trial({'reward.txt': '0\n', 'results': 'mesh-fidelity\tFAIL\n'})
         self.assertEqual(grade(trial), {'reward': 0.0, 'iou': None, 'checks': 0, 'of': 1,
                                         'passed': [], 'failed': ['mesh-fidelity'], 'complexity': {}})
+
+
+class InsightsTest(unittest.TestCase):
+    def test_updates_creates_and_recreates_a_deleted_one(self):
+        path = Path(tempfile.mkdtemp()) / 'insights.yml'
+        evidence = [{'trace_id': 't1'}]
+        path.write_text(yaml.safe_dump([
+            {'id': 'kept', 'name': 'a', 'description': 'd', 'evidence': evidence},
+            {'id': 'gone', 'name': 'b', 'description': 'd', 'evidence': evidence},
+            {'name': 'c', 'description': 'd', 'evidence': evidence}]))
+        calls = []
+
+        def api(service, route, body=None, method=None):
+            calls.append((method or 'POST', route))
+            if route == 'insights/gone':
+                raise urllib.error.HTTPError(route, 404, 'Not Found', {}, None)
+            return {} if method == 'PATCH' else {'id': f'new-{body["title"]}'}
+
+        with mock.patch.object(publish, 'api', api), redirect_stdout(io.StringIO()):
+            publish.insights(path, 'cad-agent')
+        self.assertEqual(calls, [('PATCH', 'insights/kept'), ('PATCH', 'insights/gone'),
+                                 ('POST', 'insights'), ('POST', 'insights')])
+        self.assertEqual([i['id'] for i in yaml.safe_load(path.read_text())], ['kept', 'new-b', 'new-c'])
 
 
 if __name__ == '__main__':

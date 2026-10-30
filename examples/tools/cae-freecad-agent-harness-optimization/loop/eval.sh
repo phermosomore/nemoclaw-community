@@ -12,9 +12,9 @@ cd "$(dirname "$0")/.."   # the example root: harness/, evals/, publish.py, .env
 [ -f .env ] && { set -a; . ./.env; set +a; }
 [ -n "${DOCKER_HOST:-}" ] || [ ! -S "$HOME/.colima/default/docker.sock" ] || export DOCKER_HOST=unix://$HOME/.colima/default/docker.sock
 [ ! -e "$OUT/$SPLIT" ] || { echo "$OUT/$SPLIT exists"; exit 1; }
-for i in verifier:cad-verifier environment:cad-env; do   # every task's images start from them
-  docker build -q -t "${i#*:}" "evals/${i%%:*}" > /dev/null || exit 1
-done
+# Every task's images start from these two.
+docker build -q -t cad-verifier evals/verifier > /dev/null || exit 1
+docker build -q -t cad-env evals/environment > /dev/null || exit 1
 date -u +%Y-%m-%dT%H:%M:%SZ > "$OUT/$SPLIT.started"
 PYTHONPATH=harness harbor run -y -p "evals/$SPLIT" -a cad_agent:CadAgent --ak agent_dir="$AGENT" \
   -m "${MODEL:-nvidia-nvidia-nemotron-3-5-super-vl}" -k "$N" -n "${CAD_SLOTS:-4}" \

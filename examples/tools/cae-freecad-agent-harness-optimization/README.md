@@ -50,7 +50,7 @@ passes all nine checks. Rendered headless with
 | You will get | A containerized Deep Agents CAD agent with every run traced to Helix; Compass Insights in Studio; a proven Harbor eval of 34 parts with nine checks each, split into train, val and test; and a measured, round-by-round run with its final agent. |
 | Runs on | Any host with Docker and NeMo Helix; verified on macOS with Colima. |
 | Requires | See [Prerequisites](#prerequisites). |
-| Verified on | macOS, Colima (4 CPU, 16 GiB), FreeCAD 1.1.3 (conda-forge, in the images), NeMo Helix 0.8.1, Deep Agents 0.7.32, NeMo Relay 0.10.4, NeMo Compass 0.1.0, NeMo Eval Author `48c2b3b`, Harbor 0.24.0. |
+| Verified on | macOS, Colima (4 CPU, 16 GiB), FreeCAD 1.1.3 (conda-forge, in the images), NeMo Helix 0.8.1, Deep Agents 0.7.32, NeMo Relay 0.10.4, NeMo Compass 0.1.0, NeMo Eval Author `48c2b3b`, Harbor 0.24.0 (the results); the current pins (Relay 0.11.0, Compass 0.2.0, Harbor 0.25.0) are smoke-tested. |
 | Evidence level | Live end to end with Nemotron 3.5 Super VL (see [Results](#results)); unit tests for the IoU math, `publish.py` and the eval's consistency. |
 | Support and maturity | Compass and Eval Author are research previews. [Best-effort community support](../../../SUPPORT.md). Pin versions. |
 | External access, data, and actions | Installation downloads packages and images. Live runs send prompts, geometry descriptions, renders, traces and the Ethos to your inference endpoints and write telemetry to your Helix instance. The agent runs Python it writes, inside its own container, which can reach only Helix. |
@@ -224,7 +224,7 @@ pieces and keep the loop:
 | --- | --- |
 | `agent/` (your agent: prompt, skills, middleware) | `loop/` (run, Compass, keep rule, the prompts) |
 | `ETHOS.md` (what your agent is for) | `harness/` (Deep Agents in a container, retries, tracing) |
-| Each task's `environment/Dockerfile` (your tool in place of FreeCAD) and its input | `publish.py` (grades onto traces, Insights to Studio) |
+| `evals/environment/Dockerfile` (your tool in place of FreeCAD) and each task's input | `publish.py` (grades onto traces, Insights to Studio) |
 | `evals/verifier/` (your checks, proven with Eval Author) and each task's `tests/` | `analyst.yaml` (Compass on Intake) |
 | `skills/cad-experimenter` (how an experimenter reads your traces and tests a change) | `results/charts.py` (round charts from a results file) |
 

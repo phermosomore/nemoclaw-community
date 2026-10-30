@@ -60,28 +60,34 @@ RETRY = {'max_retries': 8, 'initial_delay': 2.0, 'max_delay': 60.0, 'retry_on': 
          'on_failure': 'error'}
 
 
-# A shell command that failed: a non-zero exit, or a Python traceback or freecadcmd's line for
-# a script that raised (it then exits 0), on stdout or stderr (Deep Agents adds "[stderr] ").
-FAILED = re.compile(r'^(\[stderr\] )?(Exception while processing file:|Traceback \(most recent call last\):)'
-                    r'|\[Command failed with exit code', re.MULTILINE)
+# A shell command that failed: a non-zero exit, or, for a command that runs a script, a Python
+# traceback or freecadcmd's line for a script that raised (it then exits 0), on stdout or stderr
+# (Deep Agents adds "[stderr] "). Reading a log that holds a traceback is not a failure.
+EXIT_FAILED = re.compile(r'\[Command failed with exit code')
+SCRIPT_FAILED = re.compile(r'^(\[stderr\] )?(Exception while processing file:|Traceback \(most recent call last\):)',
+                           re.MULTILINE)
+RUNS_SCRIPT = re.compile(r'freecadcmd|python|\.py\b|\.sh\b', re.IGNORECASE)
 
 
 class MarkFailedCommands(AgentMiddleware):
-    """Marks a failed shell command's result as an error, so its trace span does too (Relay
-    records the status; Compass reads it). Deep Agents reports every command as a success. The
-    model is sent the same text either way."""
+    """Marks a failed shell command's result as an error, so its trace span does too: run_agent.py
+    puts it inside Relay, which records the status for Compass. Deep Agents reports every command
+    as a success. The model is sent the same text either way."""
 
     @staticmethod
-    def mark(result):
-        if isinstance(result, ToolMessage) and result.name == 'execute' and FAILED.search(str(result.content)):
-            result.status = 'error'
+    def mark(request, result):
+        if isinstance(result, ToolMessage) and result.name == 'execute':
+            text = str(result.content)
+            if EXIT_FAILED.search(text) or (RUNS_SCRIPT.search(str(request.tool_call['args'].get('command', '')))
+                                            and SCRIPT_FAILED.search(text)):
+                result.status = 'error'
         return result
 
     def wrap_tool_call(self, request, handler):
-        return self.mark(handler(request))
+        return self.mark(request, handler(request))
 
     async def awrap_tool_call(self, request, handler):
-        return self.mark(await handler(request))
+        return self.mark(request, await handler(request))
 
 
 def spec_of(agent_dir) -> dict:
@@ -96,21 +102,20 @@ def model_name(spec: dict) -> str:
 def agent_kwargs(agent_dir, make_model, retry) -> dict:
     """create_deep_agent's arguments for an agent folder (agent.yaml, skills/, optional
     middleware.py): the model (model_name) and each subagent's from make_model, a fresh retry()
-    middleware and then MarkFailedCommands first in the agent and in every subagent, and a shell
-    in /app whose commands stop after TIMEOUT s and whose environment lacks ENV_DROP."""
+    middleware first in the agent and in every subagent, and a shell in /app whose commands
+    stop after TIMEOUT s and whose environment lacks ENV_DROP."""
     spec = spec_of(agent_dir)
-    subagents = [{**s, 'middleware': [retry(), MarkFailedCommands(), *s.get('middleware', [])],
+    subagents = [{**s, 'middleware': [retry(), *s.get('middleware', [])],
                   **({'model': make_model(s['model'])} if 'model' in s else {})}
                  for s in spec.get('subagents') or []]
     if not any(s['name'] == GENERAL_PURPOSE_SUBAGENT['name'] for s in subagents):
         # Deep Agents adds this one itself, without the agent's middleware; declared here for
         # the retry, it must also be given the skills the automatic one would have.
-        subagents.append({**GENERAL_PURPOSE_SUBAGENT, 'middleware': [retry(), MarkFailedCommands()],
+        subagents.append({**GENERAL_PURPOSE_SUBAGENT, 'middleware': [retry()],
                           'skills': [f'{agent_dir}/skills/']})
     # Optional: agent/middleware.py exports MIDDLEWARE, a list of Deep Agents middleware.
     extra = Path(agent_dir) / 'middleware.py'
-    middleware = [retry(), MarkFailedCommands(),
-                  *(runpy.run_path(str(extra))['MIDDLEWARE'] if extra.exists() else [])]
+    middleware = [retry(), *(runpy.run_path(str(extra))['MIDDLEWARE'] if extra.exists() else [])]
     return dict(
         name=spec['name'], system_prompt=spec['system_prompt'], subagents=subagents,
         skills=[f'{agent_dir}/skills/'], middleware=middleware, model=make_model(model_name(spec)),

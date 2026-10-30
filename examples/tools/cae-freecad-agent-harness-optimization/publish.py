@@ -11,7 +11,7 @@ from agent/outcome.json, else the first line of agent/run.log), so NeMo Compass 
 each run was graded.
 insights: Compass finding -> Helix Insight (name -> title, evidence -> trace_refs);
 Helix has no CLI command for this yet. Creates new findings and writes their IDs back to
-the file; updates the ones that have an ID.
+the file; updates the ones that have an ID (creates them again if Studio no longer has them).
 
 Reads NHX_BASE_URL and NHX_WORKSPACE like the Helix CLI. Re-running scores is safe:
 Intake keeps one result per trace and name.
@@ -34,7 +34,7 @@ def api(service: str, path: str, body: dict | None = None, method: str | None = 
     request = urllib.request.Request(url, data=body and json.dumps(body).encode(), method=method,
                                      headers={'Content-Type': 'application/json'})
     with urllib.request.urlopen(request) as response:
-        return json.load(response)
+        return json.loads(response.read() or '{}')  # an update may answer with no body
 
 
 def grade(trial: Path) -> dict:
@@ -125,8 +125,13 @@ def insights(path: Path, agent: str) -> None:
             body = {'title': insight['name'], 'agent': agent, 'description': insight['description'],
                     'trace_refs': [e['trace_id'] for e in insight['evidence']]}
             if insight.get('id'):
-                api('insights', f"insights/{insight['id']}", body, 'PATCH')
-            else:
+                try:
+                    api('insights', f"insights/{insight['id']}", body, 'PATCH')
+                except urllib.error.HTTPError as error:
+                    if error.code != 404:
+                        raise
+                    insight['id'] = None  # gone from Studio: create it again
+            if not insight.get('id'):
                 insight['id'] = api('insights', 'insights', body)['id']
             print(insight['id'], insight['name'])
     finally:  # keep the IDs of the ones created, even if a later one fails

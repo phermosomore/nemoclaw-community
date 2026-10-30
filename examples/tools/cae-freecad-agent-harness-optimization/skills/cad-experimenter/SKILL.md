@@ -35,8 +35,10 @@ This skill was written for this example only. It is a worked pattern for the
   `verifier/check.log` the details,
   `verifier/reward.txt` the reward, and the first line of `agent/run.log` the trace ID
   (`trace <id>`). The same reward, IoU, failed checks and complexity counts are attached to each trace.
-- `insights.yml`: Compass Insights on this round's traces, each citing traces. Read it
-  first; if it is missing, stop and say so: a round built without it repeats guesswork.
+- `insights.yml`: Compass Insights of the run so far, each citing traces. Those with an
+  `updated_date` in this round were seen in its traces; the others are from earlier rounds and
+  may be fixed. Read it first; if it is missing, stop and say so: a round built without it
+  repeats guesswork.
 - `EVAL-AUTHOR.md`: whether the eval already catches each Insight.
 
 ## Rules

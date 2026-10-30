@@ -17,7 +17,8 @@ Review whether the eval still measures what `ETHOS.md` asks for, for round `<N>`
 - Intended behaviour: `ETHOS.md`.
 - The eval: the nine checks in `evals/verifier/check_model.py`
   (shared by every task), `evals/manifest.json` and the proof in `evals/README.md`.
-- This round's Insights: `experiments/<run>/round-<N>/insights.yml`, and the train traces
+- This round's Insights: those in `experiments/<run>/round-<N>/insights.yml` with an
+  `updated_date` in this round (the others are from earlier rounds), and the train traces
   each one cites.
 - Passing models: three or more train runs of the agent under study that pass every check
   (`experiments/<run>/round-<N>/runs/train/<trial>/artifacts/app/model.FCStd`, its

@@ -16,7 +16,8 @@ import time
 from pathlib import Path
 
 import openai
-from agent import GATEWAY_ERRORS, RETRY, TIMEOUT, agent_kwargs, chat_model, gateway_url, transient
+from agent import (GATEWAY_ERRORS, RETRY, TIMEOUT, MarkFailedCommands, agent_kwargs, chat_model,
+                   gateway_url, transient)
 from deepagents import create_deep_agent
 from langchain.agents.middleware import ModelRetryMiddleware
 from langchain_core.utils.function_calling import convert_to_openai_tool
@@ -108,9 +109,11 @@ async def main(agent_dir: str, instruction: str) -> None:
     # run as ended by the gateway, and publish.py treats it as void.
     kwargs = agent_kwargs(agent_dir, lambda name: chat_model(name, GATEWAY), lambda: GatewayRetry(**RETRY))
     model = kwargs['model'].model_name
-    # Relay outermost: the trace has each tool result as the model got it, after
-    # MarkFailedCommands and the agent's own middleware.
-    agent = create_deep_agent(**add_nemo_relay_integration(**kwargs, position='outer'))
+    # MarkFailedCommands innermost, inside Relay, so the trace records the status it sets.
+    kwargs = add_nemo_relay_integration(**kwargs)
+    for target in [kwargs, *kwargs['subagents']]:
+        target['middleware'] = [*target['middleware'], MarkFailedCommands()]
+    agent = create_deep_agent(**kwargs)
     tools = [convert_to_openai_tool(t)['function']
              for t in agent.nodes['tools'].bound.tools_by_name.values()]
     atif = AtifConfig(enabled=True, agent_name=kwargs['name'], model_name=model,
