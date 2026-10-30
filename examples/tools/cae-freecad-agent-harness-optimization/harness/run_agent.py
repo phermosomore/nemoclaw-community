@@ -108,7 +108,9 @@ async def main(agent_dir: str, instruction: str) -> None:
     # run as ended by the gateway, and publish.py treats it as void.
     kwargs = agent_kwargs(agent_dir, lambda name: chat_model(name, GATEWAY), lambda: GatewayRetry(**RETRY))
     model = kwargs['model'].model_name
-    agent = create_deep_agent(**add_nemo_relay_integration(**kwargs))
+    # Relay outermost: the trace has each tool result as the model got it, after
+    # MarkFailedCommands and the agent's own middleware.
+    agent = create_deep_agent(**add_nemo_relay_integration(**kwargs, position='outer'))
     tools = [convert_to_openai_tool(t)['function']
              for t in agent.nodes['tools'].bound.tools_by_name.values()]
     atif = AtifConfig(enabled=True, agent_name=kwargs['name'], model_name=model,

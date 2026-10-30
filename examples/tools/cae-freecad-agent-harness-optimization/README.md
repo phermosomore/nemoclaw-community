@@ -518,10 +518,10 @@ cp -R agent experiments/<run>/round-0/agent   # the agent under study, for Compa
 loop/compass.sh experiments/<run>/round-0
 ```
 
-Under the hood, `compass.sh` fills in [analyst.yaml](analyst.yaml) with the round's time
-window and agent name (Compass reads Intake, `ETHOS.md` and the agent folder), runs
-Compass's analyst agent (`compass --config <round>/analyst.yaml --output-path
-<round>/insights.yml`), and publishes the Insights to Studio (`publish.py insights`).
+Under the hood, `compass.sh` runs Compass's analyst agent with [analyst.yaml](analyst.yaml)
+and, on the command line, the round's time window, agent name and agent folder (Compass
+reads Intake, `ETHOS.md` and the agent folder; `--output-path <round>/insights.yml`), and
+publishes the Insights to Studio (`publish.py insights`).
 From round 1 on, Compass also reads the run's Insights so far (`experiments/<run>/insights.yml`,
 with `--existing-insights`): a problem it finds again updates its Insight, with the same
 Studio entry and status, and only new problems become new Insights.
@@ -662,10 +662,11 @@ The default run limit and the memory cap live in each task's
   tip is visible passes; whether FreeCAD's GUI then shows the part is unconfirmed.
 - **The eval's network rule is per host.** The agent's container can reach any port on
   the Helix host, not only Helix.
-- **Span status is always "success".** Intake shows every span of these traces as
-  successful, even a failed tool call; Compass reads the tool output instead. Fixed in
-  [NeMo-Relay#1416](https://github.com/NVIDIA/NeMo-Relay/pull/1416) (in 0.11.0, which the
-  images use); Intake also needs
+- **Intake shows every span as "success".** Deep Agents reports every shell command as a
+  success, and `freecadcmd` exits 0 after a script raises. The harness marks failed
+  commands (`MarkFailedCommands` in [harness/agent.py](harness/agent.py)); Relay 0.11.0
+  ([NeMo-Relay#1416](https://github.com/NVIDIA/NeMo-Relay/pull/1416)) carries the mark in
+  the trace, and Compass reads it. Intake's span status needs
   [nemo-helix#1265](https://github.com/NVIDIA-NeMo/nemo-helix/pull/1265) (not in 0.8.1).
 - **Helix deployments cannot run this agent.** Helix's Deep Agents adapter gives the agent
   a virtual file system and no shell, so the agent runs in the task container and Helix
