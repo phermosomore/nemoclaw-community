@@ -14,6 +14,11 @@
 | Harness | LangChain Deep Agents 0.7.41 |
 | OpenShell | N/A |
 
+> **Being rerun.** The results, the eval and its checks described below are those of the
+> previous run. The eval was removed from this branch and is recreated from
+> [ETHOS.md](ETHOS.md) by the next run ([loop/START.md](loop/START.md)); this README is
+> rewritten from that run's report.
+
 A worked, end-to-end loop for improving an AI agent that drives an engineering tool.
 The agent here turns a 3D scan-like mesh of a part into an editable CAD model in
 [FreeCAD](https://www.freecad.org/). Each round, the agent runs on a set of training

@@ -15,8 +15,8 @@ Review whether the eval still measures what `ETHOS.md` asks for, for round `<N>`
 ## Evidence
 
 - Intended behaviour: `ETHOS.md`.
-- The eval: the nine checks in `evals/verifier/check_model.py`
-  (shared by every task), `evals/manifest.json` and the proof in `evals/README.md`.
+- The eval: the grader and its checks in `evals/verifier/` (shared by every task), and the
+  task list and proof in `experiments/<run>/EVAL.md`.
 - This round's Insights: those in `experiments/<run>/round-<N>/insights.yml` with an
   `updated_date` in this round (the others are from earlier rounds), and the train traces
   each one cites.

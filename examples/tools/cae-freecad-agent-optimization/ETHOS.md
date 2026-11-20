@@ -160,6 +160,8 @@ Where things run:
 - Model selection: with-approval
 - Model weights (post-training on this eval's reward, with GRPO in NeMo Gym and NeMo RL):
   with-approval
+- Model routing (NeMo Switchyard choosing between this model and a stronger one per
+  request): with-approval
 - Task instruction, reference mesh and evals: no
 
 ## Evaluation Setup
@@ -193,7 +195,10 @@ model (GRPO in NeMo Gym and NeMo RL).
   empty answer gets 0, and each realistic wrong model (a feature left out, a scripted
   shape, dimensions that drive nothing, a stack of slices) fails and scores below the
   reference solution.
-- The tasks run on Harbor. The same tasks and grader must run under NeMo Gym for training.
+- The tasks are Harbor tasks. NeMo Gym comes later, with training.
+- Each run's cost is recorded beside its grade: tokens per model and time. Results report
+  runs passed with the tokens per passed run, so a later change of model, or routing
+  between models, is compared on both.
 
 Each run's pass, reward and check results are attached to its Intake trace, and NeMo
 Compass analyzes those traces against this ethos.
@@ -213,8 +218,9 @@ with no more passes is not a better agent.
 ## Vision
 
 Optimize the whole agent, not only its harness: the same eval first selects harness
-changes, then rewards post-training of the model, and both are compared on the same test
-set.
+changes, then compares routing to a stronger model with NeMo Switchyard, then rewards
+post-training of the model. Each step is compared on the same test set, by runs passed and
+by cost per passed run.
 
 ## Open Questions
 

@@ -5,35 +5,44 @@
 
 Paste the prompt below into a fresh coding-agent session (Claude Code, Codex or another)
 opened in `examples/tools/cae-freecad-agent-optimization`, after the
-[Prerequisites](../README.md#prerequisites). Fill in `<run>` and the budget. It runs the
-README's Steps 0 to 4 round by round, from the base agent in `agent/`, and stops for you
-once, before the first round.
+[Prerequisites](../README.md#prerequisites). Fill in `<run>` and the budget. It creates the
+eval, then runs the loop round by round from the base agent in `agent/`. It stops for you
+at each Eval Author checkpoint and once before the first round.
 
 ---
 
 You run one harness-optimization run of the FreeCAD CAD agent, `<run>`, with a budget of
 `<N>` rounds. You schedule and decide; fresh subagents do the experimenting.
 
-1. Read `ETHOS.md`, `README.md` (Start Here, Steps 0 to 4) and the
-   `cad-experimenter` skill (`npx skills add ./skills --skill cad-experimenter --agent <you> --yes`).
-   Do not read `results/`, the README's Results, or other folders under `experiments/`:
-   earlier runs must not shape this one.
+1. Read `ETHOS.md`, `agent/`, `harness/`, `loop/` and the `cad-experimenter` skill
+   (`npx skills add ./skills --skill cad-experimenter --agent <you> --yes`). Earlier runs
+   must not shape this one: do not read `README.md` (it describes the previous eval and
+   its results, and is rewritten from this run's report), `results/`, other folders under
+   `experiments/`, or the git history of `evals/`.
 2. Check the stack: Helix answers (`nemo --version`, the gateway lists the agent's model and
    Compass's), Docker reaches Colima, `harbor` and `compass` are installed, `.env` is filled,
    and the agent's image builds (`docker build -t cad-env -f harness/Dockerfile harness`).
    Stop and report anything that fails.
 3. Create the eval, from scratch, before round 0: with the
    [Eval Author skills](https://github.com/NVIDIA-NeMo/eval-author) installed, start from
-   its `eval-author` entry skill and build the eval from `ETHOS.md` alone
+   its `eval-author` entry skill and build Harbor tasks from `ETHOS.md` alone
    (`eval-author-first-eval`): the tasks, their environment, the grader with its pass and
-   its reward, and the train, val and test sets (ETHOS, Evaluation Setup). The two
-   hand-made parts in `parts/` (mesh and reference solution) belong to test. Stop for the
-   owner at every checkpoint of the skill. Every task is proven before it is accepted: the
-   reference solution passes with reward 1, an empty answer gets 0, and each realistic
-   wrong model fails and scores below the reference solution. Accepted tasks go to
-   `evals/train`, `evals/val` and `evals/test`. This is the only point where `evals/` and
-   its splits may change: record the task list, the splits and the proof in
-   `experiments/<run>/EVAL.md`.
+   its reward, and the train, val and test sets (ETHOS, Evaluation Setup). The Ethos is
+   confirmed by the owner. The two hand-made parts in `parts/` (mesh and reference
+   solution) belong to test. Stop for the owner at every checkpoint of the skill.
+   - Every task is proven before it is accepted: the reference solution passes with reward
+     1, an empty answer gets 0, and each realistic wrong model fails and scores below the
+     reference solution.
+   - Accepted tasks go to `evals/train`, `evals/val` and `evals/test`, with each task's
+     family in `evals/splits.json` (`{"tasks": {"<task>": {"family": "..."}}}`) and the
+     grader's image built from `evals/verifier` as `cad-verifier`; a task's environment
+     starts from `cad-env`, and the agent saves `/app/model.FCStd`.
+   - The loop reads three files a trial's verifier writes: `reward.txt` (the reward, 1 only
+     on a pass), `results` (one `<check><TAB>PASS|FAIL` line per check) and `metrics.json`
+     (`iou` and any other numbers). Keep that, or change `publish.py` (`grade`) and
+     `loop/summary.py` with their tests in the same step.
+   - This is the only point where `evals/` and its splits may change: record the task
+     list, the splits and the proof in `experiments/<run>/EVAL.md`.
 4. Tell the owner, in five lines: the goal (the ETHOS success criteria), the budget, the
    splits (`evals/train`, `evals/val`, `evals/test`) with one run per train task and two per
    val task, the run limit, the keep rule (the skill's). Wait for one "go".
@@ -54,15 +63,15 @@ You run one harness-optimization run of the FreeCAD CAD agent, `<run>`, with a b
      Decide on the new grades.
    - Step 4: two experimenter subagents with the `cad-experimenter` skill, each given a
      different area. They read train only: never `evals/val`, `evals/test` or
-     `evals/splits.json`. Measure each candidate on val (2 runs per task) and on train (1 run per task) with
-     `loop/eval.sh`, and
-     apply the keep rule on val (`loop/summary.py CANDIDATE_VAL AGENT_VAL`).
+     `evals/splits.json`. Measure each candidate on val (2 runs per task) and on train
+     (1 run per task) with `loop/eval.sh`, and apply the keep rule on val
+     (`loop/summary.py CANDIDATE_VAL AGENT_VAL`).
    - Append to `experiments/<run>/LOG.md`: time stamps, results, the decision and why.
-7. Never change the ETHOS, the keep rule, the splits (after step 3), the runs per task or the run limit
-   during the run; log the request for the next one. A run lost to the infrastructure is VOID: re-run it,
-   never count it, and stop if the same failure repeats.
+7. Never change the ETHOS, the keep rule, the splits (after step 3), the runs per task or
+   the run limit during the run; log the request for the next one. A run lost to the
+   infrastructure is VOID: re-run it, never count it, and stop if the same failure repeats.
 8. Stop at the budget, or after two rounds in a row with no kept candidate. Read test once:
    the final agent and the base agent, 5 runs per task each (`loop/eval.sh ... test 5`), and
-   write
-   `experiments/<run>/REPORT.md`: the eval and its changes, every round and decision, the
-   Insights and what resolved each, and the final agent against the base agent.
+   write `experiments/<run>/REPORT.md`: the eval and its proof, every round and decision,
+   the Insights and what resolved each, and the final agent against the base agent: runs
+   passed, mean reward, and tokens per run and per passed run.

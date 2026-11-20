@@ -120,8 +120,9 @@ Run scripts as files, one configuration per process, under a hard time limit, so
 costs minutes, not the round. The routine must leave a model that passes FreeCAD's full
 shape check (`shape.check(True)`). Hand over only candidates that do, on every mesh you
 tested. To
-smoke-test a candidate end to end, run one task once with `--ak agent_dir=<candidate>`
-(README Step 4); the orchestrator does the real measurement.
+smoke-test a candidate end to end, run one train task once
+(`PYTHONPATH=harness harbor run -y -p evals/train/<task> -a cad_agent:CadAgent --ak agent_dir=<candidate> -m <model> -k 1 --jobs-dir <dir>`);
+the orchestrator does the real measurement.
 
 A step that hangs or takes over about 60 s is itself a finding: the whole run has
 5 minutes. Hand over at least one candidate within about
