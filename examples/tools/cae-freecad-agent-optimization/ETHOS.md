@@ -2,7 +2,7 @@
 schema_version: 1
 name: cad-agent
 created_timestamp: 2026-09-10T13:45:00+02:00
-updated_timestamp: 2026-10-27T10:00:00+01:00
+updated_timestamp: 2026-11-20T10:00:00+01:00
 author: NVIDIA
 owner: NVIDIA
 ---
@@ -119,14 +119,14 @@ Where things run:
   that stretches the whole part along one axis is not design intent.
 - It reloads and recomputes cleanly after save and reopen.
 - Compact: about one face per surface of the part, not one per slice or polygon
-  segment; the eval allows at most 10 times the faces of the task's reference solution.
+  segment.
 - No visible artefact a designer would object to: notches, bulges, creases, seams, steps
-  or pinches the part does not have. The checks cannot measure these; renders of the
-  model beside the mesh show them.
+  or pinches the part does not have. Numeric checks may not measure these; renders of
+  the model beside the mesh show them.
 - Every feature of the part is there: a model that leaves out a branch or a boss is wrong
   even when its overall overlap is high.
-- IoU ≥ 0.9 against the task's reference mesh, measured by the eval's verifier, on every
-  part the agent is evaluated on, not only on one.
+- IoU ≥ 0.9 against the task's reference mesh, on every part the agent is evaluated on,
+  not only on one.
 
 ## Trade-offs
 
@@ -158,21 +158,45 @@ Where things run:
 - Subagents: yes
 - Middleware (`agent/middleware.py`): yes
 - Model selection: with-approval
+- Model weights (post-training on this eval's reward, with GRPO in NeMo Gym and NeMo RL):
+  with-approval
 - Task instruction, reference mesh and evals: no
 
 ## Evaluation Setup
 
-The Harbor tasks in `evals/`, all graded by the same checks authored with NeMo Eval
-Author, are split into train, val and test. Most are generated parametric parts of
-several families, each proved like the two hand-made parts (the reference solution
-passes every check, an empty answer fails, leaving out any feature fails one).
-Experimenters see only train; a change is kept on val; test, with sizes outside the
-training range, a family never trained on and the two hand-made parts, is read once at
-the end. The agent is judged on parts it was never tuned on.
-Each task's verifier grades the saved model in its own container, including IoU against
-the reference mesh at 0.1 mm XY resolution. `publish.py scores` attaches each run's
-reward, IoU, failed checks and complexity counts to its Intake trace, and NeMo Compass analyzes those
-traces against this ethos.
+The eval is authored with NeMo Eval Author from this ethos alone. One grader serves two
+uses: deciding which change to the agent is kept, and the reward for post-training the
+model (GRPO in NeMo Gym and NeMo RL).
+
+- Graded from the saved model alone, in its own container with no network. The grade is
+  deterministic, uses no model as a judge and takes seconds, so thousands of rollouts can
+  be graded and the same model always gets the same grade. The agent's report and its
+  trajectory earn nothing.
+- Two results per run: a strict pass and a reward in [0, 1]. Pass means every success
+  criterion holds; keep decisions and reported results use it. The reward gives partial
+  credit, so a policy that never passes still has something to learn from: it rises with
+  each criterion met, in the order of the Trade-offs (one valid, editable, sketch-driven
+  model first, fidelity after), and is 1 only on a pass.
+- Breaking a principle never raises the reward. A model that is not one valid solid, or
+  not a native sketch-driven tree, earns little whatever its IoU; `Block`-pinned
+  profiles, dimensions that drive nothing, stacked slices and a scripted shape earn no
+  credit for the criterion they fake.
+- Every named check is reported with the reward, so the reward can be re-weighted from
+  stored runs without running them again.
+- Tasks come from a seeded generator of parametric parts of several families, in a random
+  pose, size and mesh resolution, so training can draw as many parts as it needs. Each
+  task's reference solution is the model its mesh was exported from.
+- Three sets that share no part. Train: everything experimenters and training see. Val:
+  the same families, other parts, for keep decisions. Test: sizes outside the training
+  range, a family never trained on, and hand-made real parts; read once, at the end.
+- Every task is proven before it is used: its reference solution passes with reward 1, an
+  empty answer gets 0, and each realistic wrong model (a feature left out, a scripted
+  shape, dimensions that drive nothing, a stack of slices) fails and scores below the
+  reference solution.
+- The tasks run on Harbor. The same tasks and grader must run under NeMo Gym for training.
+
+Each run's pass, reward and check results are attached to its Intake trace, and NeMo
+Compass analyzes those traces against this ethos.
 
 ## Metric Semantics
 
@@ -183,10 +207,18 @@ jagged, self-intersecting model can score as high as a smooth one, so the full s
 check is part of the bar. IoU is not pose-aligned, so it is specific to
 each reference mesh.
 
+The reward is a training signal, not a result. Report pass rates; a higher mean reward
+with no more passes is not a better agent.
+
 ## Vision
 
-_(none)_
+Optimize the whole agent, not only its harness: the same eval first selects harness
+changes, then rewards post-training of the model, and both are compared on the same test
+set.
 
 ## Open Questions
 
 - Whether thin parts need a resolution-aware IoU target.
+- The weights of the reward's terms: their order follows the Trade-offs, their size is
+  not decided.
+- Whether a run's cost (time, tokens) should enter the reward.
