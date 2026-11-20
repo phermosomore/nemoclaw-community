@@ -3,15 +3,15 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- markdownlint-enable MD013 -->
 
-# CAE FreeCAD Agent Harness Optimization
+# CAE FreeCAD Agent Optimization
 
 | Catalog field | Value |
 | --- | --- |
 | Description | Runs a CAD agent next to headless FreeCAD, traces every run to NeMo Helix, finds its failures with NeMo Compass, holds it to a proven Harbor eval built with NeMo Eval Author, and keeps only changes that improve it on parts it never saw. |
 | Industry | 🏭 Manufacturing |
-| Requirements | Python 3.12+ · NeMo Helix 0.8.1 · Docker (Colima on macOS) · Harbor 0.25.0 · a coding agent · inference credentials |
+| Requirements | Python 3.12+ · NeMo Helix 0.10.0 · Docker (Colima on macOS) · Harbor 0.26.0 · a coding agent · inference credentials |
 | NemoClaw | N/A |
-| Harness | LangChain Deep Agents 0.7.32 |
+| Harness | LangChain Deep Agents 0.7.41 |
 | OpenShell | N/A |
 
 A worked, end-to-end loop for improving an AI agent that drives an engineering tool.
@@ -434,9 +434,9 @@ agent (Step 1), then run the loop with [loop/START.md](loop/START.md), one round
 Install NeMo Helix, Harbor and Compass, then start Helix and Colima:
 
 ```bash
-uv tool install "nemo-helix[all]==0.8.1"
-uv tool install harbor==0.25.0
-uv tool install --with mcp nemo-compass==0.2.0  # mcp: missing from its dependencies
+uv tool install "nemo-helix[all]==0.10.0"
+uv tool install harbor==0.26.0
+uv tool install --with mcp nemo-compass==0.2.1  # mcp: missing from its dependencies
 nemo setup
 colima start --cpu 4 --memory 16
 export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
@@ -455,7 +455,7 @@ export CAD_HELIX_URL=http://host.docker.internal:8080     # from the containers
 ## Start Here
 
 ```bash
-cd examples/tools/cae-freecad-agent-harness-optimization
+cd examples/tools/cae-freecad-agent-optimization
 cp .env.example .env          # fill in Compass's model
 ```
 

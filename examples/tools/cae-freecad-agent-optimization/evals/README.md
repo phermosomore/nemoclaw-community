@@ -5,7 +5,7 @@
 
 Regression evals for the CAD agent, authored with
 [NeMo Eval Author](https://github.com/NVIDIA-NeMo/eval-author)'s
-trace-to-task workflow and run with [Harbor](https://www.harborframework.com/) 0.25.0.
+trace-to-task workflow and run with [Harbor](https://www.harborframework.com/) 0.26.0.
 
 ## Cases
 
@@ -61,9 +61,9 @@ and complexity counts to its trace for NeMo Compass.
 ## Setup
 
 Run every command from the example root
-(`examples/tools/cae-freecad-agent-harness-optimization`). You need:
+(`examples/tools/cae-freecad-agent-optimization`). You need:
 
-- Harbor 0.25.0: `uv tool install harbor==0.25.0`.
+- Harbor 0.26.0: `uv tool install harbor==0.26.0`.
 - A Docker engine that can enforce per-container network rules. Docker Desktop on
   macOS cannot; [Colima](https://github.com/abiosoft/colima) can. Give it room for
   parallel trials (each is capped at 3 GiB):

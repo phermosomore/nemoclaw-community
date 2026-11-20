@@ -22,6 +22,7 @@ import json
 import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -97,11 +98,12 @@ def scores(job: Path) -> None:
         if void:  # not counted, so no grade on its trace: Compass does not judge it
             print(trial.name, session, 'skipped: void', void)
             continue
-        try:
-            span = api('intake', f'traces/{session}')['root_span_id']
-        except urllib.error.HTTPError as error:  # e.g. a run killed before its trace was sent
-            print(trial.name, session, 'skipped:', error)
+        # Helix 0.10 gives a trace its own ID; the ID NeMo Relay prints is its session_id.
+        found = api('intake', 'traces?' + urllib.parse.urlencode({'filter[session_id]': session}))['data']
+        if not found:  # e.g. a run killed before its trace was sent
+            print(trial.name, session, 'skipped: no trace in Intake')
             continue
+        span = found[0]['root_span_id']
         result = grade(trial)
         target = {'session_id': session, 'span_id': span}
         numbers = {'reward': result['reward'], 'iou': result['iou'],
