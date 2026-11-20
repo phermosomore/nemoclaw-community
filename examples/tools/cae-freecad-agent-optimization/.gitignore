@@ -6,6 +6,7 @@
 *.FCStd[0-9]
 *.FCBak
 !evals/*/*/solution/*.FCStd
+!parts/*/*.FCStd
 
 # Python
 __pycache__/

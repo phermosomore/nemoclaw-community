@@ -14,7 +14,7 @@ cd "$(dirname "$0")/.."   # the example root: harness/, evals/, publish.py, .env
 [ ! -e "$OUT/$SPLIT" ] || { echo "$OUT/$SPLIT exists"; exit 1; }
 # Every task's images start from these two.
 docker build -q -t cad-verifier evals/verifier > /dev/null || exit 1
-docker build -q -t cad-env evals/environment > /dev/null || exit 1
+docker build -q -t cad-env -f harness/Dockerfile harness > /dev/null || exit 1
 date -u +%Y-%m-%dT%H:%M:%SZ > "$OUT/$SPLIT.started"
 PYTHONPATH=harness harbor run -y -p "evals/$SPLIT" -a cad_agent:CadAgent --ak agent_dir="$AGENT" \
   -m "${MODEL:-nvidia-nvidia-nemotron-3-5-super-vl}" -k "$N" -n "${CAD_SLOTS:-4}" \

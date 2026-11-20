@@ -645,17 +645,13 @@ Asset: devx-jupyterapp-bridge/ source directory under examples/recipes/nvidia/ag
 Owner: NVIDIA
 Notes: First-party JupyterLab federated extension (~2 KB) hand-crafted for this example; sets window.jupyterapp for the workshop's in-lesson buttons. Distributed as inspectable, SPDX-headed source (package.json + static/remoteEntry.js) — no prebuilt archive. Mirrors only the structure of a prebuilt labextension and contains no third-party code. Provenance documented in the skill's references/sandbox-internals.md.
 
-Asset: reference_part.obj under examples/tools/cae-freecad-agent-optimization/evals/test/part-1-reconstruction/
+Asset: reference.obj.gz and reference-solution.FCStd under examples/tools/cae-freecad-agent-optimization/parts/part-1/
 Owner: NVIDIA
-Notes: First-party ground-truth geometry authored for this example in FreeCAD and exported to Wavefront OBJ. The example's out-of-loop scorer measures agent output against it.
+Notes: First-party ground-truth geometry authored for this example in FreeCAD and exported to Wavefront OBJ, with the FreeCAD model it was exported from. The example's eval measures agent output against it.
 
-Asset: reference_part_2.obj under examples/tools/cae-freecad-agent-optimization/evals/test/part-2-reconstruction/
+Asset: reference.obj.gz and reference-solution.FCStd under examples/tools/cae-freecad-agent-optimization/parts/part-2/
 Owner: NVIDIA
-Notes: Second first-party ground-truth part, modelled in FreeCAD for this example and exported to Wavefront OBJ. A copy sits with the verifier in evals/test/part-2-reconstruction/tests/, and the task's reference solution is the FreeCAD model it was exported from.
-
-Asset: Generated task meshes and reference solutions under examples/tools/cae-freecad-agent-optimization/evals/{train,val,test}/cad-*/
-Owner: NVIDIA
-Notes: First-party parametric FreeCAD parts generated for this example in six families, each exported to Wavefront OBJ (environment/reference.obj for the agent, tests/reference.obj for the verifier) with its reference solution (solution/reference-solution.FCStd). No third-party geometry.
+Notes: Second first-party ground-truth part, modelled in FreeCAD for this example and exported to Wavefront OBJ, with the FreeCAD model it was exported from.
 
 Asset: NeMo Studio screenshot and FreeCAD renders under examples/tools/cae-freecad-agent-optimization/assets/
 Owner: NVIDIA

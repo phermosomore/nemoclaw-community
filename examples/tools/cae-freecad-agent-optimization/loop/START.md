@@ -19,18 +19,21 @@ You run one harness-optimization run of the FreeCAD CAD agent, `<run>`, with a b
    Do not read `results/`, the README's Results, or other folders under `experiments/`:
    earlier runs must not shape this one.
 2. Check the stack: Helix answers (`nemo --version`, the gateway lists the agent's model and
-   Compass's), Docker reaches Colima, `harbor` and `compass` are installed, `.env` is filled.
-   Run the eval's controls once (`evals/README.md`, Rerun): NOP 0, Oracle 1, every negative
-   0. Stop and report anything that fails.
-3. Eval Author, from scratch, before round 0: with the
+   Compass's), Docker reaches Colima, `harbor` and `compass` are installed, `.env` is filled,
+   and the agent's image builds (`docker build -t cad-env -f harness/Dockerfile harness`).
+   Stop and report anything that fails.
+3. Create the eval, from scratch, before round 0: with the
    [Eval Author skills](https://github.com/NVIDIA-NeMo/eval-author) installed, start from
-   its `eval-author` entry skill and audit the eval against `ETHOS.md`
-   (`eval-author-audit`), then generate or update tasks and checks where the audit finds
-   gaps (`eval-author-task-create`, proposal mode; `eval-author-first-eval` if a family has
-   no tasks). Stop for the owner on every proposal. Each new or changed check is proven
-   (NOP 0, Oracle 1, a realistic negative 0) before it is applied; rerun the controls and
-   rebuild `cad-env` and `cad-verifier`. This is the only point where `evals/` and its splits
-   may change: record the final task list and split in `experiments/<run>/EVAL.md`.
+   its `eval-author` entry skill and build the eval from `ETHOS.md` alone
+   (`eval-author-first-eval`): the tasks, their environment, the grader with its pass and
+   its reward, and the train, val and test sets (ETHOS, Evaluation Setup). The two
+   hand-made parts in `parts/` (mesh and reference solution) belong to test. Stop for the
+   owner at every checkpoint of the skill. Every task is proven before it is accepted: the
+   reference solution passes with reward 1, an empty answer gets 0, and each realistic
+   wrong model fails and scores below the reference solution. Accepted tasks go to
+   `evals/train`, `evals/val` and `evals/test`. This is the only point where `evals/` and
+   its splits may change: record the task list, the splits and the proof in
+   `experiments/<run>/EVAL.md`.
 4. Tell the owner, in five lines: the goal (the ETHOS success criteria), the budget, the
    splits (`evals/train`, `evals/val`, `evals/test`) with one run per train task and two per
    val task, the run limit, the keep rule (the skill's). Wait for one "go".
