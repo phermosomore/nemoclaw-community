@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Every task's tests/ defers to the shared verifier (evals/verifier), and grade.sh lists every check."""
+"""Every task defers to the shared images (evals/environment, evals/verifier), and grade.sh lists every check."""
 
 import json
 import re
@@ -12,12 +12,14 @@ TASKS = sorted(p.parents[1] for p in EVALS.glob('*/*/tests/test.sh'))  # evals/<
 
 
 class EvalsInSyncTest(unittest.TestCase):
-    def test_tasks_use_the_shared_verifier(self):
+    def test_tasks_use_the_shared_images(self):
         for task in TASKS:
-            tests = task / 'tests'
-            self.assertEqual({p.name for p in tests.iterdir()}, {'Dockerfile', 'test.sh', 'reference.obj.gz'}, task.name)
-            for name, line in {'Dockerfile': 'FROM cad-verifier', 'test.sh': 'exec bash /grader/grade.sh'}.items():
-                self.assertIn(line, (tests / name).read_text(), task.name)
+            for folder, files in {'tests': {'Dockerfile': 'FROM cad-verifier', 'test.sh': 'exec bash /grader/grade.sh'},
+                                  'environment': {'Dockerfile': 'FROM cad-env'}}.items():
+                names = {p.name for p in (task / folder).iterdir() if not p.name.startswith('.')}  # e.g. .DS_Store
+                self.assertEqual(names, {*files, 'reference.obj.gz'}, task.name)
+                for name, line in files.items():
+                    self.assertIn(line, (task / folder / name).read_text(), task.name)
 
     def test_grade_sh_lists_every_check(self):
         verifier = EVALS / 'verifier'

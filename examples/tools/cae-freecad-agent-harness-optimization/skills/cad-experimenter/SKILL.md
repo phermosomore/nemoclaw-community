@@ -35,8 +35,10 @@ This skill was written for this example only. It is a worked pattern for the
   `verifier/check.log` the details,
   `verifier/reward.txt` the reward, and the first line of `agent/run.log` the trace ID
   (`trace <id>`). The same reward, IoU, failed checks and complexity counts are attached to each trace.
-- `insights.yml`: Compass Insights on this round's traces, each citing traces. Read it
-  first; if it is missing, stop and say so: a round built without it repeats guesswork.
+- `insights.yml`: Compass Insights of the run so far, each citing traces. Those with an
+  `updated_date` in this round were seen in its traces; the others are from earlier rounds and
+  may be fixed. Read it first; if it is missing, stop and say so: a round built without it
+  repeats guesswork.
 - `EVAL-AUTHOR.md`: whether the eval already catches each Insight.
 
 ## Rules
@@ -93,7 +95,7 @@ problems to diagnose like failing checks: they often cost IoU margin, and a mode
 passes with them is not the model a designer would build.
 
 ```bash
-docker build -t cad-env "$(ls -d evals/train/*/environment | head -1)"   # once: the agent's image (every task's is the same)
+docker build -t cad-env evals/environment   # once: the agent's image
 docker run --rm -v "$PWD":/w -w /w -e OUT=render.png \
   -e RENDER="<trial>/artifacts/app/model.FCStd:evals/train/<task>/environment/reference.obj.gz" \
   cad-env xvfb-run -a -s "-screen 0 1920x1200x24" freecadcmd skills/cad-experimenter/render/render.py

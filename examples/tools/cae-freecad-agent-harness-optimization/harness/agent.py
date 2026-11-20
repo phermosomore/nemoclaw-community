@@ -5,6 +5,7 @@
 chat.sh set.
 """
 import os
+import re
 import runpy
 from pathlib import Path
 
@@ -13,6 +14,8 @@ import openai
 import yaml
 from deepagents.backends import LocalShellBackend
 from deepagents.middleware.subagents import GENERAL_PURPOSE_SUBAGENT
+from langchain.agents.middleware import AgentMiddleware
+from langchain_core.messages import ToolMessage
 from langchain_openai import ChatOpenAI, StreamChunkTimeoutError
 
 # The gateway failing, not the request: lost connection, time-out (incl. no streamed chunk
@@ -55,6 +58,36 @@ def transient(error: Exception) -> bool:
 # with the error as the agent's answer, which looks like the agent stopping on its own.
 RETRY = {'max_retries': 8, 'initial_delay': 2.0, 'max_delay': 60.0, 'retry_on': transient,
          'on_failure': 'error'}
+
+
+# A shell command that failed: a non-zero exit, or, for a command that runs a script, a Python
+# traceback or freecadcmd's line for a script that raised (it then exits 0), on stdout or stderr
+# (Deep Agents adds "[stderr] "). Reading a log that holds a traceback is not a failure.
+EXIT_FAILED = re.compile(r'\[Command failed with exit code')
+SCRIPT_FAILED = re.compile(r'^(\[stderr\] )?(Exception while processing file:|Traceback \(most recent call last\):)',
+                           re.MULTILINE)
+RUNS_SCRIPT = re.compile(r'freecadcmd|python|\.py\b|\.sh\b', re.IGNORECASE)
+
+
+class MarkFailedCommands(AgentMiddleware):
+    """Marks a failed shell command's result as an error, so its trace span does too: run_agent.py
+    puts it inside Relay, which records the status for Compass. Deep Agents reports every command
+    as a success. The model is sent the same text either way."""
+
+    @staticmethod
+    def mark(request, result):
+        if isinstance(result, ToolMessage) and result.name == 'execute':
+            text = str(result.content)
+            if EXIT_FAILED.search(text) or (RUNS_SCRIPT.search(str(request.tool_call['args'].get('command', '')))
+                                            and SCRIPT_FAILED.search(text)):
+                result.status = 'error'
+        return result
+
+    def wrap_tool_call(self, request, handler):
+        return self.mark(request, handler(request))
+
+    async def awrap_tool_call(self, request, handler):
+        return self.mark(request, await handler(request))
 
 
 def spec_of(agent_dir) -> dict:

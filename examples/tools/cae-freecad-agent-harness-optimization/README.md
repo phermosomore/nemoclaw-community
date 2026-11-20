@@ -9,7 +9,7 @@
 | --- | --- |
 | Description | Runs a CAD agent next to headless FreeCAD, traces every run to NeMo Helix, finds its failures with NeMo Compass, holds it to a proven Harbor eval built with NeMo Eval Author, and keeps only changes that improve it on parts it never saw. |
 | Industry | 🏭 Manufacturing |
-| Requirements | Python 3.12+ · NeMo Helix 0.8.1 · Docker (Colima on macOS) · Harbor 0.24.0 · a coding agent · inference credentials |
+| Requirements | Python 3.12+ · NeMo Helix 0.8.1 · Docker (Colima on macOS) · Harbor 0.25.0 · a coding agent · inference credentials |
 | NemoClaw | N/A |
 | Harness | LangChain Deep Agents 0.7.32 |
 | OpenShell | N/A |
@@ -50,7 +50,7 @@ passes all nine checks. Rendered headless with
 | You will get | A containerized Deep Agents CAD agent with every run traced to Helix; Compass Insights in Studio; a proven Harbor eval of 34 parts with nine checks each, split into train, val and test; and a measured, round-by-round run with its final agent. |
 | Runs on | Any host with Docker and NeMo Helix; verified on macOS with Colima. |
 | Requires | See [Prerequisites](#prerequisites). |
-| Verified on | macOS, Colima (4 CPU, 16 GiB), FreeCAD 1.1.3 (conda-forge, in the images), NeMo Helix 0.8.1, Deep Agents 0.7.32, NeMo Relay 0.10.4, NeMo Compass 0.1.0, NeMo Eval Author `48c2b3b`, Harbor 0.24.0. |
+| Verified on | macOS, Colima (4 CPU, 16 GiB), FreeCAD 1.1.3 (conda-forge, in the images), NeMo Helix 0.8.1, Deep Agents 0.7.32, NeMo Relay 0.10.4, NeMo Compass 0.1.0, NeMo Eval Author `48c2b3b`, Harbor 0.24.0 (the results); the current pins (Relay 0.11.0, Compass 0.2.0, Harbor 0.25.0) are smoke-tested. |
 | Evidence level | Live end to end with Nemotron 3.5 Super VL (see [Results](#results)); unit tests for the IoU math, `publish.py` and the eval's consistency. |
 | Support and maturity | Compass and Eval Author are research previews. [Best-effort community support](../../../SUPPORT.md). Pin versions. |
 | External access, data, and actions | Installation downloads packages and images. Live runs send prompts, geometry descriptions, renders, traces and the Ethos to your inference endpoints and write telemetry to your Helix instance. The agent runs Python it writes, inside its own container, which can reach only Helix. |
@@ -199,9 +199,8 @@ is CAD-specific: swap FreeCAD for your solver, mesher or CAD kernel.
 
 ## How it runs
 
-Each eval run (a *trial*) gets its own container, built from the task's
-[environment](evals/test/part-1-reconstruction/environment/Dockerfile) (the same for every
-task): headless FreeCAD 1.1.3 with a virtual display, the Deep Agents runtime, NeMo Relay
+Each eval run (a *trial*) gets its own container, built from the
+[agent's image](evals/environment/Dockerfile) plus the task's mesh: headless FreeCAD 1.1.3 with a virtual display, the Deep Agents runtime, NeMo Relay
 for tracing, and the part's mesh. A separate container with no network grades the saved
 model.
 
@@ -225,7 +224,7 @@ pieces and keep the loop:
 | --- | --- |
 | `agent/` (your agent: prompt, skills, middleware) | `loop/` (run, Compass, keep rule, the prompts) |
 | `ETHOS.md` (what your agent is for) | `harness/` (Deep Agents in a container, retries, tracing) |
-| Each task's `environment/Dockerfile` (your tool in place of FreeCAD) and its input | `publish.py` (grades onto traces, Insights to Studio) |
+| `evals/environment/Dockerfile` (your tool in place of FreeCAD) and each task's input | `publish.py` (grades onto traces, Insights to Studio) |
 | `evals/verifier/` (your checks, proven with Eval Author) and each task's `tests/` | `analyst.yaml` (Compass on Intake) |
 | `skills/cad-experimenter` (how an experimenter reads your traces and tests a change) | `results/charts.py` (round charts from a results file) |
 
@@ -436,8 +435,8 @@ Install NeMo Helix, Harbor and Compass, then start Helix and Colima:
 
 ```bash
 uv tool install "nemo-helix[all]==0.8.1"
-uv tool install harbor==0.24.0
-uv tool install --with mcp 'nemo-compass @ git+https://github.com/NVIDIA-NeMo/nemo-compass.git@v0.1.0'  # mcp: missing from its dependencies
+uv tool install harbor==0.25.0
+uv tool install --with mcp nemo-compass==0.2.0  # mcp: missing from its dependencies
 nemo setup
 colima start --cpu 4 --memory 16
 export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
@@ -519,10 +518,13 @@ cp -R agent experiments/<run>/round-0/agent   # the agent under study, for Compa
 loop/compass.sh experiments/<run>/round-0
 ```
 
-Under the hood, `compass.sh` fills in [analyst.yaml](analyst.yaml) with the round's time
-window and agent name (Compass reads Intake, `ETHOS.md` and the agent folder), runs
-Compass's analyst agent (`compass --config <round>/analyst.yaml --output-path
-<round>/insights.yml`), and publishes the Insights to Studio (`publish.py insights`).
+Under the hood, `compass.sh` runs Compass's analyst agent with [analyst.yaml](analyst.yaml)
+and, on the command line, the round's time window, agent name and agent folder (Compass
+reads Intake, `ETHOS.md` and the agent folder; `--output-path <round>/insights.yml`), and
+publishes the Insights to Studio (`publish.py insights`).
+From round 1 on, Compass also reads the run's Insights so far (`experiments/<run>/insights.yml`,
+with `--existing-insights`): a problem it finds again updates its Insight, with the same
+Studio entry and status, and only new problems become new Insights.
 
 ![One Compass Insight in NeMo Studio: failed loft refinements that leave an earlier, known-wrong model, with its description, suggested fix and the two traces that show it](assets/studio-insight.png)
 
@@ -601,7 +603,7 @@ builds it: upload a mesh, ask the agent to rebuild it, watch its steps and the r
 reads, compare its model with the mesh in 3D, and download `model.FCStd`.
 
 ```bash
-docker build -t cad-env "$(ls -d evals/train/*/environment | head -1)"   # once: the agent's image
+docker build -t cad-env evals/environment   # once: the agent's image
 chat/chat.sh          # the final agent; open http://localhost:8765
 ```
 
@@ -660,11 +662,12 @@ The default run limit and the memory cap live in each task's
   tip is visible passes; whether FreeCAD's GUI then shows the part is unconfirmed.
 - **The eval's network rule is per host.** The agent's container can reach any port on
   the Helix host, not only Helix.
-- **Span status is always "success".** Intake shows every span of these traces as
-  successful, even a failed tool call; Compass reads the tool output instead. Fixed in
-  [NeMo-Relay#1416](https://github.com/NVIDIA/NeMo-Relay/pull/1416) (in the 0.11.0
-  pre-releases, not in 0.10.4); Intake also needs
-  [nemo-helix#1265](https://github.com/NVIDIA-NeMo/nemo-helix/pull/1265).
+- **Intake shows every span as "success".** Deep Agents reports every shell command as a
+  success, and `freecadcmd` exits 0 after a script raises. The harness marks failed
+  commands (`MarkFailedCommands` in [harness/agent.py](harness/agent.py)); Relay 0.11.0
+  ([NeMo-Relay#1416](https://github.com/NVIDIA/NeMo-Relay/pull/1416)) carries the mark in
+  the trace, and Compass reads it. Intake's span status needs
+  [nemo-helix#1265](https://github.com/NVIDIA-NeMo/nemo-helix/pull/1265) (not in 0.8.1).
 - **Helix deployments cannot run this agent.** Helix's Deep Agents adapter gives the agent
   a virtual file system and no shell, so the agent runs in the task container and Helix
   provides the model, traces and analysis. Platform feedback: a real-path workspace and a
