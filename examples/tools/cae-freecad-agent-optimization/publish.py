@@ -9,7 +9,7 @@ scores: for every trial of a Harbor job, attaches the verifier's reward, IoU, fa
 checks and model complexity (features, sketches, faces, ...) to the run's trace (its ID
 from agent/outcome.json, else the first line of agent/run.log), so NeMo Compass sees how
 each run was graded.
-insights: Compass finding -> Helix Insight (name -> title, evidence -> trace_refs);
+insights: Compass finding -> Helix Insight (name -> title, with its evidence, severity and confidence);
 Helix has no CLI command for this yet. Creates new findings and writes their IDs back to
 the file; updates the ones that have an ID (creates them again if Studio no longer has them).
 
@@ -28,6 +28,7 @@ from pathlib import Path
 
 BASE = os.environ.get('NHX_BASE_URL', 'http://localhost:8080').rstrip('/')
 WORKSPACE = os.environ.get('NHX_WORKSPACE', 'default')
+LEVELS = {'medium': 'med'}  # Compass's word -> Helix's
 
 
 def api(service: str, path: str, body: dict | None = None, method: str | None = None) -> dict:
@@ -124,17 +125,19 @@ def insights(path: Path, agent: str) -> None:
     found = yaml.safe_load(path.read_text()) or []
     try:
         for insight in found:
+            # Helix 0.10: Insights live in its compass service and take Compass's evidence as written.
             body = {'title': insight['name'], 'agent': agent, 'description': insight['description'],
-                    'trace_refs': [e['trace_id'] for e in insight['evidence']]}
+                    'evidence': insight['evidence'],
+                    **{k: LEVELS.get(insight[k], insight[k]) for k in ('severity', 'confidence') if insight.get(k)}}
             if insight.get('id'):
                 try:
-                    api('insights', f"insights/{insight['id']}", body, 'PATCH')
+                    api('compass', f"insights/{insight['id']}", body, 'PATCH')
                 except urllib.error.HTTPError as error:
                     if error.code != 404:
                         raise
                     insight['id'] = None  # gone from Studio: create it again
             if not insight.get('id'):
-                insight['id'] = api('insights', 'insights', body)['id']
+                insight['id'] = api('compass', 'insights', body)['id']
             print(insight['id'], insight['name'])
     finally:  # keep the IDs of the ones created, even if a later one fails
         path.write_text(yaml.safe_dump(found, sort_keys=False, allow_unicode=True))
